@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence, Union
 
+import os
+
 import numpy as np
 from PIL import Image
 import tf_keras  # Keras 2 compatibility layer — loads .h5 weights saved before Keras 3
@@ -36,7 +38,7 @@ DISCLAIMER = "For screening purposes only. Not a substitute for professional med
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
-WEIGHTS_DIR = Path(__file__).parent / "weights"
+WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
 ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
 
 ImageSource = Union[str, bytes, Path]

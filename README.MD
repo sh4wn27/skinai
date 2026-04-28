@@ -10,7 +10,7 @@ AI-powered skin lesion screening across 9 dermatological conditions. Upload a ph
 
 - Classifies skin lesions into 9 categories using an EfficientNet B4/B5/B7 ensemble
 - Flags high-risk results (melanoma, BCC, SCC) and surfaces verified dermatologists
-- 20,000+ users · 10+ verified dermatologists · pending patent
+- 20,000+ users · 10+ verified dermatologists ·
 
 ## Conditions detected
 
@@ -114,11 +114,10 @@ skinai/
 │   ├── main.py           # FastAPI app
 │   ├── requirements.txt
 │   └── weights/          # .h5 files (gitignored)
-└── frontend/             # Next.js app (coming)
+└── frontend/             # Next.js app
 ```
 
 ## Author
 
 Huanxuan (Shawn) Li · TJHSST · [sh4wn.org](https://sh4wn.org)
 
-Built on top of [Tirth27/Skin-Cancer-Classification-using-Deep-Learning](https://github.com/Tirth27/Skin-Cancer-Classification-using-Deep-Learning).

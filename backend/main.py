@@ -11,7 +11,8 @@ app = FastAPI(title="SkinAI", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://skinai.vercel.app", "http://localhost:3000"],
+    allow_origins=["https://skinai.vercel.app"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+|https://.*\.vercel\.app",
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
