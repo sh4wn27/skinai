@@ -64,13 +64,34 @@ export default function ScanWidget({ showDisclaimer = false }: ScanWidgetProps) 
     if (f) handleFile(f)
   }
 
+  const toJpeg = (f: File): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(f)
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        canvas.getContext('2d')!.drawImage(img, 0, 0)
+        URL.revokeObjectURL(url)
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('canvas conversion failed'))),
+          'image/jpeg',
+          0.92,
+        )
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('could not load image')) }
+      img.src = url
+    })
+
   const handleSubmit = async () => {
     if (!file) return
     setLoading(true)
     setError(null)
     try {
+      const jpeg = await toJpeg(file)
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', jpeg, 'image.jpg')
       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
       const res = await fetch(`${apiUrl}/predict`, { method: 'POST', body: formData })
       if (!res.ok) throw new Error(`Server error (${res.status})`)
