@@ -14,7 +14,7 @@ from typing import Sequence, Union
 
 import numpy as np
 from PIL import Image
-import tensorflow as tf
+import tf_keras  # Keras 2 compatibility layer — loads .h5 weights saved before Keras 3
 
 # Alphabetical order of diagnosis codes — matches flow_from_dataframe's default sort.
 # Verified against the upstream Tirth27 training pipeline (main_run.py class_indices).
@@ -57,7 +57,7 @@ class SkinAIEnsemble:
         weights_dir: Path = WEIGHTS_DIR,
         ensemble_files: Sequence[str] = ENSEMBLE_FILES,
     ):
-        self.models: list[tf.keras.Model] = []
+        self.models: list[tf_keras.Model] = []
         for fname in ensemble_files:
             path = weights_dir / fname
             if not path.exists():
@@ -65,9 +65,9 @@ class SkinAIEnsemble:
                     f"Missing weights file: {path}. "
                     "Drop the pretrained .h5 files into backend/weights/."
                 )
-            self.models.append(tf.keras.models.load_model(path, compile=False))
+            self.models.append(tf_keras.models.load_model(path, compile=False))
 
-    def input_size(self, model: tf.keras.Model) -> tuple[int, int]:
+    def input_size(self, model: tf_keras.Model) -> tuple[int, int]:
         """Read the (H, W) this model expects directly from its input tensor."""
         _, h, w, _ = model.input_shape
         return (h, w)
