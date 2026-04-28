@@ -45,7 +45,7 @@ AI-powered skin lesion screening across 9 dermatological conditions. Upload a ph
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --
 ```
 
 Weights go in `backend/weights/` as:
