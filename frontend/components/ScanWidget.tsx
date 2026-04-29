@@ -258,7 +258,7 @@ export default function ScanWidget({ showDisclaimer = false }: ScanWidgetProps) 
           </div>
           <p className="text-lg font-semibold text-zinc-700">Drop your photo here</p>
           <p className="text-zinc-400 mt-1 text-sm">or click to browse</p>
-          <p className="text-zinc-300 text-xs mt-4">JPG, PNG, WEBP · up to 10 MB</p>
+          <p className="text-zinc-300 text-xs mt-4 font-light">JPG, PNG, WEBP · up to 10 MB</p>
         </div>
       ) : (
         <div className="space-y-4">

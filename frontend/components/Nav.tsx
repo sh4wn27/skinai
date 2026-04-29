@@ -3,36 +3,24 @@ import Link from 'next/link'
 export default function Nav() {
   return (
     <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur-md border-b border-zinc-100">
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-7 h-7 rounded-lg bg-pink-700 flex items-center justify-center">
-            <span className="text-white font-bold text-xs">S</span>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-pink-700 flex items-center justify-center">
+            <span className="text-white font-semibold text-xs">S</span>
           </div>
-          <span className="font-bold text-zinc-900 font-heading">SkinAI</span>
+          <span className="font-semibold text-zinc-900 text-sm tracking-tight">SkinAI</span>
         </Link>
 
-        <div className="flex items-center gap-6 md:gap-8">
-          <Link
-            href="/scan"
-            className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium"
-          >
+        <div className="flex items-center gap-4 sm:gap-6">
+          <Link href="/scan" className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors font-medium hidden sm:block">
             Scan
           </Link>
-          <Link
-            href="/dermatologists"
-            className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium"
-          >
+          <Link href="/dermatologists" className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors font-medium hidden sm:block">
             Dermatologists
           </Link>
           <Link
-            href="/#about"
-            className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors font-medium"
-          >
-            About
-          </Link>
-          <Link
             href="/scan"
-            className="px-4 py-2 bg-pink-700 text-white rounded-full font-semibold hover:bg-pink-800 transition-colors text-sm shadow-sm shadow-pink-200"
+            className="px-3.5 py-1.5 bg-pink-700 text-white rounded-full font-medium hover:bg-pink-800 transition-colors text-xs"
           >
             Get Screened
           </Link>
