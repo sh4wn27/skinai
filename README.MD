@@ -1,6 +1,6 @@
-# SkinAI
+# SKINAI
 
-AI-powered skin lesion screening across 9 dermatological conditions. Upload a photo, get an instant risk assessment, and connect with verified dermatologists for follow-up.
+Deep learning neural networks with weights for skin lesion screening across 9 dermatological conditions. Upload a photo, get an instant risk assessment, and connect with verified dermatologists for follow-up.
 
 > **Disclaimer:** For screening purposes only. Not a substitute for professional medical advice.
 
