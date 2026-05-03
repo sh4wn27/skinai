@@ -260,7 +260,7 @@ arr = (img_array / 255.0 - [0.485,0.456,0.406]) \
           </div>
         </div>
         <p className="text-zinc-300 text-xs text-center mt-4 font-light">
-          Built by Shawn Li · TJHSST · Pending Patent
+          Built with ❤️ by Shawn. © 2026 SkinAI. All rights reserved.
         </p>
       </footer>
     </main>
