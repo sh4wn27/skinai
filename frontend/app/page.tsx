@@ -3,9 +3,9 @@ import Nav from '@/components/Nav'
 import ScanWidget from '@/components/ScanWidget'
 
 const stats = [
-  { value: '20,000+', label: 'Users Screened' },
+  { value: '25,000+', label: 'Training Images' },
+  { value: 'B4 · B5 · B7', label: 'EfficientNet Ensemble' },
   { value: '9', label: 'Conditions Detected' },
-  { value: '10+', label: 'Verified Dermatologists' },
 ]
 
 const steps = [
@@ -19,7 +19,7 @@ const steps = [
   },
   {
     title: 'Connect',
-    desc: 'High-risk results surface verified dermatologists.',
+    desc: 'High-risk results are clearly flagged so you can seek professional evaluation.',
   },
 ]
 
@@ -52,18 +52,14 @@ export default function HomePage() {
       {/* Hero */}
       <section className="pt-28 pb-16 px-4 sm:px-6 text-center">
         <div className="max-w-3xl mx-auto">
-          <span className="inline-flex items-center gap-2 px-3 py-1 bg-pink-50 text-pink-700 rounded-full text-xs font-medium mb-6 border border-pink-100">
-            <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
-            20,000+ users screened
-          </span>
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-zinc-900 mb-4 leading-[1.1]">
+<h1 className="text-3xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-zinc-900 mb-4 leading-[1.1]">
             AI Skin Cancer
             <br />
             <span className="text-pink-700">Screening.</span>
           </h1>
           <p className="text-sm sm:text-base text-zinc-400 max-w-xl mx-auto mb-8 leading-relaxed font-light">
             Upload a photo of your skin lesion. Get an instant risk assessment across 9
-            dermatological conditions. Connect with verified dermatologists.
+            dermatological conditions powered by a research-grade EfficientNet ensemble.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             <Link
@@ -71,12 +67,6 @@ export default function HomePage() {
               className="px-6 py-3 bg-pink-700 text-white rounded-full font-medium hover:bg-pink-800 transition-colors text-sm shadow-md shadow-pink-100"
             >
               Get Screened Free
-            </Link>
-            <Link
-              href="/dermatologists"
-              className="px-6 py-3 border border-zinc-200 text-zinc-500 rounded-full font-medium hover:border-pink-200 hover:text-pink-700 transition-colors text-sm"
-            >
-              Our Dermatologists →
             </Link>
           </div>
         </div>
@@ -228,7 +218,6 @@ arr = (img_array / 255.0 - [0.485,0.456,0.406]) \
           >
             Apply to Join →
           </a>
-          <p className="text-zinc-300 text-xs mt-5 font-light">10+ dermatologists already onboarded</p>
         </div>
       </section>
 
@@ -248,8 +237,7 @@ arr = (img_array / 255.0 - [0.485,0.456,0.406]) \
 
           <div className="flex items-center gap-4 text-xs text-zinc-400 font-light">
             <Link href="/scan" className="hover:text-pink-700 transition-colors">Scan</Link>
-            <Link href="/dermatologists" className="hover:text-pink-700 transition-colors">Dermatologists</Link>
-            <a
+<a
               href="https://github.com/sh4wn27/skinai"
               target="_blank"
               rel="noopener noreferrer"

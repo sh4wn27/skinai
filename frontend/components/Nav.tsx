@@ -15,10 +15,7 @@ export default function Nav() {
           <Link href="/scan" className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors font-medium hidden sm:block">
             Scan
           </Link>
-          <Link href="/dermatologists" className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors font-medium hidden sm:block">
-            Dermatologists
-          </Link>
-          <Link
+<Link
             href="/scan"
             className="px-3.5 py-1.5 bg-pink-700 text-white rounded-full font-medium hover:bg-pink-800 transition-colors text-xs"
           >
