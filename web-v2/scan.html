@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="warm" data-corner="soft">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Screen a lesion — SkinAI</title>
+<meta name="description" content="Upload a photo of a skin lesion for an instant AI risk assessment. For screening purposes only." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="components.css" />
+</head>
+<body>
+
+<header class="nav is-scrolled" data-screen-label="nav">
+  <div class="nav__inner">
+    <a class="brand" href="index.html"><span class="brand__mark"></span>SkinAI</a>
+    <nav class="nav__links">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#conditions">Coverage</a>
+      <a href="index.html#model">The model</a>
+    </nav>
+    <div class="nav__right">
+      <a class="btn btn--ghost" href="index.html">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6 5 12l6 6"/></svg>
+        Home
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="scan-main">
+  <div class="scan-shell">
+    <div class="scan-stage" id="stage" data-screen-label="scan-stage">
+
+      <!-- ===== STATE 1: UPLOAD ===== -->
+      <div id="view-upload">
+        <div class="scan-steps">
+          <b>Upload</b><span class="sep"></span>Analyze<span class="sep"></span>Result
+        </div>
+        <div class="scan-stage__head">
+          <span class="eyebrow">Free screening</span>
+          <h1>Screen a skin lesion.</h1>
+          <p>Upload a clear, close-up photo. The ensemble screens for nine conditions in seconds — nothing is stored.</p>
+        </div>
+        <label class="drop scan-drop" id="drop">
+          <div class="drop__icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+          </div>
+          <div class="drop__title">Drop your photo here</div>
+          <div class="drop__hint">or click to browse</div>
+          <div class="drop__meta">JPG · PNG · WEBP — up to 10 MB</div>
+          <input type="file" id="fileInput" accept="image/*" />
+        </label>
+        <p class="scan-disclaimer">SkinAI is a screening aid for educational purposes only. It does not provide a diagnosis and is not a substitute for professional medical advice. If you are concerned about a lesion, consult a dermatologist.</p>
+      </div>
+
+      <!-- ===== STATE 2: ANALYZING ===== -->
+      <div id="view-analyzing" style="display:none">
+        <div class="scan-steps">
+          Upload<span class="sep"></span><b>Analyze</b><span class="sep"></span>Result
+        </div>
+        <div class="card" style="padding:48px 28px">
+          <div class="analyzing">
+            <div class="scanthumb"><img id="aThumb" alt="" /></div>
+            <div class="analyzing__label">Screening across 9 conditions…</div>
+            <div class="analyzing__step" id="aStep">Initializing</div>
+            <div class="miniprog"><span id="aProg"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== STATE 3: RESULT ===== -->
+      <div id="view-result" style="display:none"></div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="footer" data-screen-label="footer">
+  <div class="wrap">
+    <div class="footer__bottom" style="border-top:none;margin-top:0;padding-top:0">
+      <span class="footer__disclaimer">For screening purposes only — not a substitute for professional medical advice.</span>
+      <span>© 2026 SkinAI</span>
+    </div>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  const S = window.SkinAI;
+  const vUpload = document.getElementById("view-upload");
+  const vAnalyze = document.getElementById("view-analyzing");
+  const vResult = document.getElementById("view-result");
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("fileInput");
+  let currentSrc = null;
+  let currentFile = null;
+
+  function show(view) {
+    [vUpload, vAnalyze, vResult].forEach((v) => v.style.display = "none");
+    view.style.display = "";
+    view.classList.remove("fade-swap"); void view.offsetWidth; view.classList.add("fade-swap");
+  }
+
+  function placeholderThumb(el) {
+    el.removeAttribute("src");
+    el.style.background = "radial-gradient(120% 120% at 35% 30%, #d9b89e, #b98a6d 60%, #8f6249)";
+  }
+
+  ["dragenter","dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("dragover"); }));
+  ["dragleave","drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+  fileInput.addEventListener("change", (e) => { const f = e.target.files[0]; if (f) handleFile(f); });
+
+  function handleFile(file) {
+    currentFile = file;
+    S.readImage(file, (src) => { currentSrc = src; startAnalysis(src, file); });
+  }
+
+  function startAnalysis(src, file) {
+    const t = document.getElementById("aThumb");
+    if (src) { t.src = src; t.style.background = "none"; } else placeholderThumb(t);
+    show(vAnalyze);
+    document.getElementById("aProg").style.width = "0%";
+    S.runRealAnalysis({
+      file: file,
+      stepEl: document.getElementById("aStep"),
+      progEl: document.getElementById("aProg"),
+      onDone: renderResult,
+      onError: (msg) => {
+        vResult.innerHTML = `
+          <div class="scan-steps">Upload<span class="sep"></span>Analyze<span class="sep"></span><b>Result</b></div>
+          <div class="card" style="padding:40px 28px;text-align:center">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--risk-high)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 18px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div style="font-size:17px;font-weight:600;color:var(--ink);margin-bottom:10px">Screening failed</div>
+            <div style="font-size:14.5px;color:var(--muted);margin-bottom:28px">${msg}</div>
+            <button class="btn btn--ghost" id="errAgain">Try again</button>
+          </div>`;
+        show(vResult);
+        document.getElementById("errAgain").addEventListener("click", () => {
+          currentSrc = null; currentFile = null; fileInput.value = ""; show(vUpload);
+        });
+      },
+    });
+  }
+
+  function renderResult(dist) {
+    const top = dist[0];
+    const isHigh = top.high && top.p > 0.18;
+    const conf = S.fmtPct(top.p);
+    const thumbHtml = currentSrc
+      ? `<img src="${currentSrc}" alt="Uploaded lesion" />`
+      : `<div style="width:100%;height:100%;background:radial-gradient(120% 120% at 35% 30%,#d9b89e,#b98a6d 60%,#8f6249)"></div>`;
+
+    const bars = dist.map((d, i) => `
+      <div class="bar__row">
+        <span class="bar__name ${i===0 ? "is-top" : ""}">${d.name} ${d.high ? '<span style="font-family:var(--mono);font-size:11px;color:var(--risk-high);margin-left:4px">●</span>' : ''}</span>
+        <span class="bar__pct">${S.fmtPct(d.p)}</span>
+        <div class="bar__track"><div class="bar__fill ${i===0 && d.high ? "high" : (i===0 ? "" : "muted")}" data-w="${(d.p*100).toFixed(1)}"></div></div>
+      </div>`).join("");
+
+    const recommend = isHigh
+      ? `<div class="recommend is-high">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4m0 4h.01"/></svg>
+           <span><b>A high-risk class is elevated.</b> This is not a diagnosis — please have this lesion evaluated by a dermatologist promptly.</span>
+         </div>`
+      : `<div class="recommend">
+           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--risk-low)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+           <span><b>No high-risk class above threshold.</b> Keep monitoring for any change in size, color or shape, and screen again if it evolves.</span>
+         </div>`;
+
+    vResult.innerHTML = `
+      <div class="scan-steps">Upload<span class="sep"></span>Analyze<span class="sep"></span><b>Result</b></div>
+      <div class="result scan-result">
+        <div class="scan-result__head">
+          <div class="scan-result__thumb">${thumbHtml}</div>
+          <div>
+            <div class="verdict-banner" style="color:${isHigh ? "var(--risk-high)" : "var(--risk-low)"}">
+              <span class="result__dot" style="background:${isHigh ? "var(--risk-high)" : "var(--risk-low)"}"></span>
+              ${isHigh ? "High-risk flag" : "Low risk"}
+            </div>
+            <div class="scan-result__verdict">${top.name}</div>
+            <div class="scan-result__conf">Top prediction · <span style="font-family:var(--mono)">${conf}</span> confidence · ensemble of B4·B5·B7</div>
+          </div>
+        </div>
+        <div class="scan-result__body">
+          ${recommend}
+          <div style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">All 9 conditions</div>
+          <div class="bars">${bars}</div>
+        </div>
+        <div class="scan-result__foot">
+          <span style="font-size:13px;color:var(--muted)">${isHigh ? "We recommend professional evaluation." : "Screening complete."}</span>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn--ghost" id="again">Scan another</button>
+            ${isHigh ? '<a class="btn btn--accent" href="mailto:shawnli1028@gmail.com?subject=SkinAI%20%E2%80%94%20Find%20a%20dermatologist">Find a dermatologist</a>' : ''}
+          </div>
+        </div>
+      </div>`;
+    show(vResult);
+    setTimeout(() => vResult.querySelectorAll(".bar__fill").forEach((b) => b.style.width = b.dataset.w + "%"), 90);
+    document.getElementById("again").addEventListener("click", () => {
+      currentSrc = null; currentFile = null; fileInput.value = ""; show(vUpload);
+    });
+  }
+})();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<div id="tweaks-root"></div>
+<script type="text/babel" src="tweaks-app.jsx"></script>
+
+</body>
+</html>

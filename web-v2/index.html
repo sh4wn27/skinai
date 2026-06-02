@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="warm" data-corner="soft">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SkinAI — AI Skin Cancer Screening</title>
+<meta name="description" content="AI-powered skin lesion screening across 9 dermatological conditions. For screening purposes only. Not a substitute for professional medical advice." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="components.css" />
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav" data-screen-label="nav">
+  <div class="nav__inner">
+    <a class="brand" href="index.html"><span class="brand__mark"></span>SkinAI</a>
+    <nav class="nav__links">
+      <a href="#demo">Try it</a>
+      <a href="#how">How it works</a>
+      <a href="#conditions">Coverage</a>
+      <a href="#model">The model</a>
+      <a href="#derm">For clinicians</a>
+    </nav>
+    <div class="nav__right">
+      <a class="btn btn--accent" href="scan.html">Get screened
+        <svg class="arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ===================== HERO ===================== -->
+<section class="section hero" data-screen-label="hero">
+  <div class="wrap">
+    <div class="hero__grid">
+      <div class="hero__copy">
+        <span class="eyebrow">AI dermatology screening</span>
+        <h1 class="hero__title">Know your skin.<br /><span class="soft">In seconds.</span></h1>
+        <p class="hero__lede">Upload a photo of a mole or lesion and get an instant risk assessment across nine dermatological conditions — powered by a research-grade EfficientNet ensemble.</p>
+        <div class="hero__cta">
+          <a class="btn btn--accent btn--lg" href="scan.html">Screen a lesion — free
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn--ghost btn--lg" href="#how">See how it works</a>
+        </div>
+        <div class="hero__assurance">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          Photos are analyzed in your browser session — not stored.
+        </div>
+      </div>
+
+      <!-- hero visual: sample result -->
+      <div class="hero__visual">
+        <div class="result" role="img" aria-label="Sample screening result">
+          <div class="result__bar">
+            <span class="result__dot live"></span>
+            <span>screening complete</span>
+            <span style="margin-left:auto;font-family:var(--mono)">0.9s</span>
+          </div>
+          <div class="result__body">
+            <div class="result__lesion" style="grid-template-columns:1fr">
+              <div>
+                <div class="result__verdict-label">Most likely</div>
+                <div class="result__verdict">Melanocytic nevus <span class="pill pill--low">LOW RISK</span></div>
+                <div class="result__sub">Benign mole · no high-risk class above threshold</div>
+              </div>
+            </div>
+            <div class="bars" id="heroBars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- stat bar -->
+    <div class="statbar">
+      <div class="stat">
+        <div class="stat__num">25,000<span class="mono">+</span></div>
+        <div class="stat__label">Dermatoscopic training images</div>
+      </div>
+      <div class="stat">
+        <div class="stat__num"><span class="mono">B4 · B5 · B7</span></div>
+        <div class="stat__label">EfficientNet soft-vote ensemble</div>
+      </div>
+      <div class="stat">
+        <div class="stat__num">9</div>
+        <div class="stat__label">Conditions screened per scan</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DEMO ===================== -->
+<section class="section section--tint" id="demo" data-screen-label="demo">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Live demo</span>
+      <h2>Try it right here.</h2>
+      <p>Drop in any photo and watch the ensemble screen it in real time. No sign-up, nothing leaves this page.</p>
+    </div>
+
+    <div class="demo__grid reveal">
+      <!-- uploader -->
+      <label class="drop" id="drop">
+        <div class="drop__icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 16v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+        </div>
+        <div class="drop__title">Drop a photo here</div>
+        <div class="drop__hint">or click to browse</div>
+        <div class="drop__meta">JPG · PNG · WEBP — up to 10 MB</div>
+        <input type="file" id="fileInput" accept="image/*" />
+      </label>
+
+      <!-- result panel -->
+      <div class="demo__panel" id="demoPanel">
+        <div class="demo__placeholder">
+          <div class="ring">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          </div>
+          <div style="font-weight:500;color:var(--ink-2)">Your result appears here</div>
+          <div style="font-size:13.5px">Upload a photo to begin screening.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== HOW IT WORKS ===================== -->
+<section class="section" id="how" data-screen-label="how">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">How it works</span>
+      <h2>Three steps, under five seconds.</h2>
+    </div>
+    <div class="steps reveal">
+      <div class="step">
+        <div class="step__n">01</div>
+        <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+        <h3>Upload</h3>
+        <p>Take or upload a clear, well-lit photo of the lesion. Closer is better.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">02</div>
+        <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m13.5-6.5-2 2m-7 7-2 2m11 0-2-2m-7-7-2-2"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>Analyze</h3>
+        <p>The B4·B5·B7 ensemble screens for nine conditions and averages their probabilities.</p>
+      </div>
+      <div class="step">
+        <div class="step__n">03</div>
+        <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Act</h3>
+        <p>High-risk results are clearly flagged with a recommendation to see a dermatologist.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CONDITIONS ===================== -->
+<section class="section section--tint" id="conditions" data-screen-label="conditions">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Coverage</span>
+      <h2>Nine conditions, one scan.</h2>
+      <p>Trained on the ISIC 2019, ISIC 2020 and HAM10000 dermatology archives.</p>
+    </div>
+    <div class="cond-grid reveal" id="condGrid"></div>
+    <div class="cond-note reveal">
+      <span class="tag tag--high">HIGH-RISK</span>
+      <span>Melanoma, basal cell carcinoma, squamous cell carcinoma and actinic keratosis are flagged as high-risk and trigger a recommendation for professional evaluation.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MODEL ===================== -->
+<section class="section" id="model" data-screen-label="model">
+  <div class="wrap">
+    <div class="model__grid">
+      <div class="reveal">
+        <div class="section-head" style="margin-bottom:28px">
+          <span class="eyebrow">Under the hood</span>
+          <h2>A research-grade ensemble.</h2>
+          <p>Three EfficientNet models, each trained independently, soft-voted at inference for a steadier prediction than any single network.</p>
+        </div>
+        <div class="spec">
+          <div class="spec__row"><span class="spec__k">Architecture</span><span class="spec__v">EfficientNet B4 · B5 · B7</span></div>
+          <div class="spec__row"><span class="spec__k">Ensemble method</span><span class="spec__v">Soft-vote (mean probs)</span></div>
+          <div class="spec__row"><span class="spec__k">Training data</span><span class="spec__v">ISIC 2019 + 2020 + HAM10000</span></div>
+          <div class="spec__row"><span class="spec__k">Training images</span><span class="spec__v">25,000+</span></div>
+          <div class="spec__row"><span class="spec__k">Output classes</span><span class="spec__v">9 conditions</span></div>
+          <div class="spec__row"><span class="spec__k">High-risk flags</span><span class="spec__v">MEL · BCC · SCC · AK</span></div>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <div class="code">
+          <div class="code__bar">
+            <span class="d"></span><span class="d"></span><span class="d"></span>
+            <span class="code__name">inference.py</span>
+            <a class="code__view" href="https://github.com/sh4wn27/skinai/tree/main" target="_blank" rel="noopener">view source →</a>
+          </div>
+<pre><span class="c"># soft-voting ensemble</span>
+<span class="k">def</span> <span class="f">predict_probs</span>(self, img):
+    per_model = []
+    <span class="k">for</span> model <span class="k">in</span> self.models:        <span class="c"># B4, B5, B7</span>
+        h, w = self.input_size(model)
+        arr  = _preprocess(img, (h, w))
+        per_model.append(model.predict(arr)[<span class="n">0</span>])
+    <span class="k">return</span> np.mean(per_model, axis=<span class="n">0</span>)   <span class="c"># soft vote</span>
+
+<span class="c"># ImageNet normalization</span>
+arr = (img / <span class="n">255.</span> - <span class="n">[.485,.456,.406]</span>) / <span class="n">[.229,.224,.225]</span></pre>
+        </div>
+        <div class="tech-row">
+          <span class="tag">Python 3.11</span>
+          <span class="tag">TensorFlow 2.20</span>
+          <span class="tag">tf-keras</span>
+          <span class="tag">FastAPI</span>
+          <span class="tag">Next.js 14</span>
+          <span class="tag">Modal</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DERM CTA ===================== -->
+<section class="section" id="derm" data-screen-label="derm">
+  <div class="wrap">
+    <div class="derm reveal">
+      <div class="derm__inner">
+        <span class="eyebrow">Clinician network</span>
+        <h2>Are you a dermatologist?</h2>
+        <p>Join our verified network and connect with patients who need expert evaluation after a high-risk screening result.</p>
+        <div class="derm__cta">
+          <a class="btn btn--accent btn--lg" href="mailto:shawnli1028@gmail.com?subject=SkinAI%20Dermatologist%20Network%20Application">Apply to join
+            <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer" data-screen-label="footer">
+  <div class="wrap">
+    <div class="footer__top">
+      <div>
+        <a class="brand" href="index.html"><span class="brand__mark"></span>SkinAI</a>
+        <p class="footer__note">AI-assisted skin lesion screening across nine dermatological conditions.</p>
+      </div>
+      <div class="footer__links">
+        <a href="scan.html">Get screened</a>
+        <a href="#how">How it works</a>
+        <a href="#model">The model</a>
+        <a href="https://github.com/sh4wn27/skinai" target="_blank" rel="noopener">GitHub</a>
+        <a href="mailto:shawnli1028@gmail.com?subject=SkinAI%20Dermatologist%20Network%20Application">For clinicians</a>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span class="footer__disclaimer">For screening purposes only — not a substitute for professional medical advice, diagnosis or treatment.</span>
+      <span>© 2026 SkinAI · Built by Shawn</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ===================== DEMO + CONDITIONS SCRIPT ===================== -->
+<script src="app.js"></script>
+<script>
+(function () {
+  const S = window.SkinAI;
+
+  /* ---- soft skin-tone placeholder for empty thumbs ---- */
+  function placeholderThumb(el) {
+    el.style.background = "radial-gradient(120% 120% at 35% 30%, #d9b89e, #b98a6d 60%, #8f6249)";
+    el.innerHTML = '<div style="width:34%;height:34%;margin:33% auto 0;border-radius:50%;background:rgba(80,40,25,.42);box-shadow:0 0 0 6px rgba(80,40,25,.14)"></div>';
+  }
+
+  /* ---- hero sample bars (static, reassuring benign distribution) ---- */
+  const heroDist = [
+    { name: "Melanocytic nevus", p: 0.86, high: false, top: true },
+    { name: "Benign keratosis",  p: 0.07, high: false },
+    { name: "Dermatofibroma",    p: 0.04, high: false },
+    { name: "Melanoma",          p: 0.02, high: true },
+  ];
+  const heroBars = document.getElementById("heroBars");
+  heroBars.innerHTML = heroDist.map((d) => `
+    <div class="bar__row">
+      <span class="bar__name ${d.top ? "is-top" : ""}">${d.name}</span>
+      <span class="bar__pct">${S.fmtPct(d.p)}</span>
+      <div class="bar__track"><div class="bar__fill ${d.high ? "muted" : (d.top ? "" : "muted")}" data-w="${(d.p * 100).toFixed(0)}"></div></div>
+    </div>`).join("");
+  // animate hero bars in
+  const heroVis = document.querySelector(".hero__visual");
+  const hio = new IntersectionObserver((ents) => {
+    ents.forEach((e) => { if (e.isIntersecting) {
+      heroBars.querySelectorAll(".bar__fill").forEach((b) => b.style.width = b.dataset.w + "%");
+      hio.disconnect();
+    }});
+  }, { threshold: 0.3 });
+  hio.observe(heroVis);
+
+  /* ---- conditions grid ---- */
+  const grid = document.getElementById("condGrid");
+  const condList = [
+    ["MEL","Melanoma",true],["BCC","Basal cell carcinoma",true],["SCC","Squamous cell carcinoma",true],
+    ["AK","Actinic keratosis",true],["NV","Melanocytic nevus",false],["BKL","Benign keratosis",false],
+    ["DF","Dermatofibroma",false],["VASC","Vascular lesion",false],["UNK","Unknown",false]
+  ];
+  grid.innerHTML = condList.map(([abbr, name, high]) => `
+    <div class="cond ${high ? "is-high" : ""}">
+      <div class="cond__top">
+        <span class="cond__abbr">${abbr}</span>
+        ${high ? '<span class="tag tag--high">HIGH-RISK</span>' : '<span class="tag tag--low">benign</span>'}
+      </div>
+      <span class="cond__name">${name}</span>
+    </div>`).join("");
+
+  /* ---- live demo interaction ---- */
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("fileInput");
+  const panel = document.getElementById("demoPanel");
+
+  ["dragenter","dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("dragover"); }));
+  ["dragleave","drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
+  drop.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+  fileInput.addEventListener("change", (e) => { const f = e.target.files[0]; if (f) handleFile(f); });
+
+  function handleFile(file) {
+    S.readImage(file, (src) => { startAnalysis(src || null); });
+  }
+
+  function startAnalysis(src) {
+    const thumb = src
+      ? `<div class="scanthumb"><img src="${src}" alt="" /></div>`
+      : `<div class="scanthumb" id="aThumb"></div>`;
+    panel.innerHTML = `
+      <div class="analyzing fade-swap">
+        ${thumb}
+        <div class="analyzing__label">Screening…</div>
+        <div class="analyzing__step" id="aStep">Initializing</div>
+        <div class="miniprog"><span id="aProg"></span></div>
+      </div>`;
+    if (!src) placeholderThumb(document.getElementById("aThumb"));
+    S.runAnalysis({
+      stepEl: document.getElementById("aStep"),
+      progEl: document.getElementById("aProg"),
+      onDone: (dist) => renderResult(dist, src),
+    });
+  }
+
+  function renderResult(dist, src) {
+    const top = dist[0];
+    const isHigh = top.high && top.p > 0.18;
+    const thumb = src
+      ? `<div class="result__thumb"><img src="${src}" style="width:100%;height:100%;object-fit:cover" alt="" /></div>`
+      : `<div class="result__thumb" id="rThumb"></div>`;
+    const shown = dist.slice(0, 5);
+    const bars = shown.map((d, i) => `
+      <div class="bar__row">
+        <span class="bar__name ${i===0 ? "is-top" : ""}">${d.name}</span>
+        <span class="bar__pct">${S.fmtPct(d.p)}</span>
+        <div class="bar__track"><div class="bar__fill ${i===0 && d.high ? "high" : (i===0 ? "" : "muted")}" data-w="${(d.p*100).toFixed(0)}"></div></div>
+      </div>`).join("");
+    panel.innerHTML = `
+      <div class="result fade-swap" style="flex:1">
+        <div class="result__bar">
+          <span class="result__dot live"></span><span>screening complete</span>
+          <a href="scan.html" style="margin-left:auto;color:var(--accent-ink);font-family:var(--mono)">full report →</a>
+        </div>
+        <div class="result__body">
+          <div class="result__lesion">
+            ${thumb}
+            <div>
+              <div class="result__verdict-label">Most likely</div>
+              <div class="result__verdict">${top.name} <span class="pill ${isHigh ? "pill--high" : "pill--low"}">${isHigh ? "HIGH RISK" : "LOW RISK"}</span></div>
+              <div class="result__sub">${isHigh ? "A high-risk class is elevated — see a dermatologist." : "No high-risk class above threshold."}</div>
+            </div>
+          </div>
+          <div class="bars">${bars}</div>
+        </div>
+      </div>`;
+    if (!src) placeholderThumb(document.getElementById("rThumb"));
+    requestAnimationFrame(() => {
+      setTimeout(() => panel.querySelectorAll(".bar__fill").forEach((b) => b.style.width = b.dataset.w + "%"), 60);
+    });
+  }
+})();
+</script>
+
+<!-- ===================== TWEAKS ===================== -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<div id="tweaks-root"></div>
+<script type="text/babel" src="tweaks-app.jsx"></script>
+
+</body>
+</html>
