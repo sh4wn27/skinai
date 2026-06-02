@@ -58,10 +58,10 @@
 }
 
 [data-accent="warm"] {
-  --accent:        oklch(0.60 0.19 348);
-  --accent-press:  oklch(0.53 0.19 348);
-  --accent-tint:   oklch(0.96 0.04 348);
-  --accent-ink:    oklch(0.46 0.17 348);
+  --accent:        oklch(0.50 0.17 12);
+  --accent-press:  oklch(0.43 0.17 12);
+  --accent-tint:   oklch(0.96 0.03 12);
+  --accent-ink:    oklch(0.40 0.15 12);
 }
 
 [data-corner="sharp"] { --radius: 4px; --radius-sm: 3px; }
