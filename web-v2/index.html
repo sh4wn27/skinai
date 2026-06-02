@@ -18,7 +18,7 @@
   <div class="nav__inner">
     <a class="brand" href="index.html"><span class="brand__mark"></span>SkinAI</a>
     <nav class="nav__links">
-      <a href="#demo">Try it</a>
+      <a href="#demo">Screen a lesion</a>
       <a href="#how">How it works</a>
       <a href="#conditions">Coverage</a>
       <a href="#model">The model</a>
@@ -38,18 +38,18 @@
   <div class="wrap">
     <div class="hero__grid">
       <div class="hero__copy">
-        <span class="eyebrow">AI dermatology screening</span>
-        <h1 class="hero__title">Know your skin.<br /><span class="soft">In seconds.</span></h1>
-        <p class="hero__lede">Upload a photo of a mole or lesion and get an instant risk assessment across nine dermatological conditions — powered by a research-grade EfficientNet ensemble.</p>
+        <span class="eyebrow">Dermatological screening tool</span>
+        <h1 class="hero__title">AI-assisted lesion<br /><span class="soft">risk stratification.</span></h1>
+        <p class="hero__lede">Upload a clinical or dermoscopic photograph. An EfficientNet B4·B5·B7 ensemble returns a probability distribution across nine dermatological conditions, with high-risk classes flagged for professional follow-up.</p>
         <div class="hero__cta">
-          <a class="btn btn--accent btn--lg" href="scan.html">Screen a lesion — free
+          <a class="btn btn--accent btn--lg" href="scan.html">Begin screening
             <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
-          <a class="btn btn--ghost btn--lg" href="#how">See how it works</a>
+          <a class="btn btn--ghost btn--lg" href="#how">Methodology</a>
         </div>
         <div class="hero__assurance">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-          Photos are analyzed in your browser session — not stored.
+          Images are not retained after inference.
         </div>
       </div>
 
@@ -58,8 +58,8 @@
         <div class="result" role="img" aria-label="Sample screening result">
           <div class="result__bar">
             <span class="result__dot live"></span>
-            <span>screening complete</span>
-            <span style="margin-left:auto;font-family:var(--mono)">0.9s</span>
+            <span>inference complete</span>
+            <span style="margin-left:auto;font-family:var(--mono)">sample</span>
           </div>
           <div class="result__body">
             <div class="result__lesion" style="grid-template-columns:1fr">
@@ -97,9 +97,9 @@
 <section class="section section--tint" id="demo" data-screen-label="demo">
   <div class="wrap">
     <div class="section-head reveal">
-      <span class="eyebrow">Live demo</span>
-      <h2>Try it right here.</h2>
-      <p>Drop in any photo and watch the ensemble screen it in real time. No sign-up, nothing leaves this page.</p>
+      <span class="eyebrow">Live inference</span>
+      <h2>Submit a photograph for analysis.</h2>
+      <p>Upload any skin lesion photograph. The ensemble returns a full probability distribution across all nine conditions — no account required.</p>
     </div>
 
     <div class="demo__grid reveal">
@@ -132,27 +132,27 @@
 <section class="section" id="how" data-screen-label="how">
   <div class="wrap">
     <div class="section-head reveal">
-      <span class="eyebrow">How it works</span>
-      <h2>Three steps, under five seconds.</h2>
+      <span class="eyebrow">Methodology</span>
+      <h2>Three-stage inference pipeline.</h2>
     </div>
     <div class="steps reveal">
       <div class="step">
         <div class="step__n">01</div>
         <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-        <h3>Upload</h3>
-        <p>Take or upload a clear, well-lit photo of the lesion. Closer is better.</p>
+        <h3>Image submission</h3>
+        <p>Upload a clear, close-up photograph of the lesion. Higher resolution and controlled lighting improve classification accuracy.</p>
       </div>
       <div class="step">
         <div class="step__n">02</div>
         <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m13.5-6.5-2 2m-7 7-2 2m11 0-2-2m-7-7-2-2"/><circle cx="12" cy="12" r="3"/></svg></div>
-        <h3>Analyze</h3>
-        <p>The B4·B5·B7 ensemble screens for nine conditions and averages their probabilities.</p>
+        <h3>Ensemble inference</h3>
+        <p>EfficientNet B4, B5, and B7 each run an independent forward pass. Output probability vectors are averaged via soft voting.</p>
       </div>
       <div class="step">
         <div class="step__n">03</div>
         <div class="step__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
-        <h3>Act</h3>
-        <p>High-risk results are clearly flagged with a recommendation to see a dermatologist.</p>
+        <h3>Risk stratification</h3>
+        <p>MEL, BCC, SCC, and AK predictions above threshold are flagged as high-risk and prompt a dermatologist referral recommendation.</p>
       </div>
     </div>
   </div>
@@ -162,9 +162,9 @@
 <section class="section section--tint" id="conditions" data-screen-label="conditions">
   <div class="wrap">
     <div class="section-head reveal">
-      <span class="eyebrow">Coverage</span>
-      <h2>Nine conditions, one scan.</h2>
-      <p>Trained on the ISIC 2019, ISIC 2020 and HAM10000 dermatology archives.</p>
+      <span class="eyebrow">Classification scope</span>
+      <h2>Nine-class dermatological classification.</h2>
+      <p>Training corpus: ISIC 2019, ISIC 2020, and HAM10000 — combined dermatoscopic and clinical image archives.</p>
     </div>
     <div class="cond-grid reveal" id="condGrid"></div>
     <div class="cond-note reveal">
@@ -180,9 +180,9 @@
     <div class="model__grid">
       <div class="reveal">
         <div class="section-head" style="margin-bottom:28px">
-          <span class="eyebrow">Under the hood</span>
-          <h2>A research-grade ensemble.</h2>
-          <p>Three EfficientNet models, each trained independently, soft-voted at inference for a steadier prediction than any single network.</p>
+          <span class="eyebrow">Architecture</span>
+          <h2>EfficientNet soft-vote ensemble.</h2>
+          <p>Three EfficientNet variants are trained independently on the same corpus. At inference, per-class probability vectors are averaged element-wise — reducing single-model variance without retraining.</p>
         </div>
         <div class="spec">
           <div class="spec__row"><span class="spec__k">Architecture</span><span class="spec__v">EfficientNet B4 · B5 · B7</span></div>
@@ -232,10 +232,10 @@ arr = (img / <span class="n">255.</span> - <span class="n">[.485,.456,.406]</spa
     <div class="derm reveal">
       <div class="derm__inner">
         <span class="eyebrow">Clinician network</span>
-        <h2>Are you a dermatologist?</h2>
-        <p>Join our verified network and connect with patients who need expert evaluation after a high-risk screening result.</p>
+        <h2>Open to board-certified dermatologists.</h2>
+        <p>We maintain a verified referral network for patients who receive high-risk screening results. If you're a practicing dermatologist, we'd like to list your practice.</p>
         <div class="derm__cta">
-          <a class="btn btn--accent btn--lg" href="mailto:shawnli1028@gmail.com?subject=SkinAI%20Dermatologist%20Network%20Application">Apply to join
+          <a class="btn btn--accent btn--lg" href="mailto:shawnli1028@gmail.com?subject=SkinAI%20Dermatologist%20Network%20Application">Request inclusion
             <svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
         </div>
@@ -331,10 +331,10 @@ arr = (img / <span class="n">255.</span> - <span class="n">[.485,.456,.406]</spa
   fileInput.addEventListener("change", (e) => { const f = e.target.files[0]; if (f) handleFile(f); });
 
   function handleFile(file) {
-    S.readImage(file, (src) => { startAnalysis(src || null); });
+    S.readImage(file, (src) => { startAnalysis(file, src || null); });
   }
 
-  function startAnalysis(src) {
+  function startAnalysis(file, src) {
     const thumb = src
       ? `<div class="scanthumb"><img src="${src}" alt="" /></div>`
       : `<div class="scanthumb" id="aThumb"></div>`;
@@ -346,10 +346,19 @@ arr = (img / <span class="n">255.</span> - <span class="n">[.485,.456,.406]</spa
         <div class="miniprog"><span id="aProg"></span></div>
       </div>`;
     if (!src) placeholderThumb(document.getElementById("aThumb"));
-    S.runAnalysis({
+    S.runRealAnalysis({
+      file,
       stepEl: document.getElementById("aStep"),
       progEl: document.getElementById("aProg"),
       onDone: (dist) => renderResult(dist, src),
+      onError: (msg) => {
+        panel.innerHTML = `
+          <div class="demo__placeholder fade-swap">
+            <div class="ring"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--risk-high)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div style="font-weight:500;color:var(--ink-2)">Screening failed</div>
+            <div style="font-size:13.5px">${msg}</div>
+          </div>`;
+      },
     });
   }
 
