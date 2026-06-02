@@ -2,7 +2,7 @@
 // Used by both index.html and scan.html.
 
 const SKIN_TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "accent": "cobalt",
+  "accent": "warm",
   "corner": "soft",
   "scale": 100
 }/*EDITMODE-END*/;
