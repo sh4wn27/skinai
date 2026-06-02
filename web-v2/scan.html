@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Screen a lesion — SkinAI</title>
+<title>Screen a lesion — SKINAI</title>
 <meta name="description" content="Upload a photo of a skin lesion for an instant AI risk assessment. For screening purposes only." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,7 +15,7 @@
 
 <header class="nav is-scrolled" data-screen-label="nav">
   <div class="nav__inner">
-    <a class="brand" href="index.html"><span class="brand__mark"></span>SkinAI</a>
+    <a class="brand" href="index.html"><span class="brand__mark"></span>SKINAI</a>
     <nav class="nav__links">
       <a href="index.html#how">How it works</a>
       <a href="index.html#conditions">Coverage</a>
@@ -53,7 +53,7 @@
           <div class="drop__meta">JPG · PNG · WEBP — up to 10 MB</div>
           <input type="file" id="fileInput" accept="image/*" />
         </label>
-        <p class="scan-disclaimer">SkinAI is a screening tool, not a diagnostic device. Output probabilities do not constitute a clinical diagnosis and are not a substitute for evaluation by a board-certified dermatologist. If you have concerns about a lesion, seek professional medical assessment.</p>
+        <p class="scan-disclaimer">SKINAI is a screening tool, not a diagnostic device. Output probabilities do not constitute a clinical diagnosis and are not a substitute for evaluation by a board-certified dermatologist. If you have concerns about a lesion, seek professional medical assessment.</p>
       </div>
 
       <!-- ===== STATE 2: ANALYZING ===== -->
@@ -82,7 +82,7 @@
   <div class="wrap">
     <div class="footer__bottom" style="border-top:none;margin-top:0;padding-top:0">
       <span class="footer__disclaimer">For screening purposes only — not a substitute for professional medical advice.</span>
-      <span>© 2026 SkinAI</span>
+      <span>© 2026 SKINAI</span>
     </div>
   </div>
 </footer>
@@ -90,7 +90,7 @@
 <script src="app.js"></script>
 <script>
 (function () {
-  const S = window.SkinAI;
+  const S = window.SKINAI;
   const vUpload = document.getElementById("view-upload");
   const vAnalyze = document.getElementById("view-analyzing");
   const vResult = document.getElementById("view-result");
@@ -195,7 +195,7 @@
           <span style="font-size:13px;color:var(--muted)">${isHigh ? "We recommend professional evaluation." : "Screening complete."}</span>
           <div style="display:flex;gap:10px">
             <button class="btn btn--ghost" id="again">Scan another</button>
-            ${isHigh ? '<a class="btn btn--accent" href="mailto:shawnli1028@gmail.com?subject=SkinAI%20%E2%80%94%20Find%20a%20dermatologist">Find a dermatologist</a>' : ''}
+            ${isHigh ? '<a class="btn btn--accent" href="mailto:shawnli1028@gmail.com?subject=SKINAI%20%E2%80%94%20Find%20a%20dermatologist">Find a dermatologist</a>' : ''}
           </div>
         </div>
       </div>`;
