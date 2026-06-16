@@ -75,13 +75,27 @@ class SkinAIEnsemble:
         return (h, w)
 
     def predict_probs(self, source_image: Image.Image) -> np.ndarray:
-        """Preprocess per-model, run inference, return soft-voted probabilities."""
+        """Preprocess per-model with TTA (horizontal/vertical flip + 180° rotation),
+        run inference, and return the soft-voted probabilities."""
         per_model: list[np.ndarray] = []
         for model in self.models:
             h, w = self.input_size(model)
-            arr = _preprocess(source_image, (h, w))
-            per_model.append(model.predict(arr, verbose=0)[0])
+            per_view = [
+                model.predict(_preprocess(view, (h, w)), verbose=0)[0]
+                for view in _tta_views(source_image)
+            ]
+            per_model.append(np.mean(per_view, axis=0))
         return np.mean(per_model, axis=0)
+
+
+def _tta_views(img: Image.Image) -> list[Image.Image]:
+    """Original + horizontal flip + vertical flip + 180° rotation."""
+    return [
+        img,
+        img.transpose(Image.FLIP_LEFT_RIGHT),
+        img.transpose(Image.FLIP_TOP_BOTTOM),
+        img.transpose(Image.ROTATE_180),
+    ]
 
 
 def _preprocess(img: Image.Image, size: tuple[int, int]) -> np.ndarray:
