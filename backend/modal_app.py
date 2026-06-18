@@ -33,9 +33,9 @@ weights_volume = modal.Volume.from_name("skinai-weights", create_if_missing=True
 @app.function(
     image=image,
     volumes={"/weights": weights_volume},
+    gpu="T4",
     timeout=300,
     scaledown_window=300,  # keep warm for 5 min after last request
-    cpu=4.0,
     memory=16384,  # 16 GB — B4+B5+B7 together need ~12 GB RAM
 )
 @modal.asgi_app()

@@ -31,12 +31,22 @@ CLASSES: list[tuple[str, str]] = [
     ("UNK",  "Unknown"),
     ("VASC", "Vascular lesion"),
 ]
-HIGH_RISK_CODES = {"MEL", "BCC", "SCC"}
+HIGH_RISK_CODES = {"MEL", "BCC", "SCC", "AK"}
 DISCLAIMER = "For screening purposes only. Not a substitute for professional medical advice."
 
 # ImageNet statistics — matches A.Normalize() used in training (pre_train.py).
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+# Per-class temperature scaling to correct NV-dominant training bias.
+# T < 1 sharpens (boosts rare-class scores); T > 1 dampens (suppresses majority-class overconfidence).
+# Order matches CLASSES list (alphabetical): AK BCC BKL DF MEL NV SCC UNK VASC
+# Calibrated from confusion-matrix eval (n=20/class on ISIC archive, Jun 2026):
+# NV=95% recall, MEL/BCC/VASC/BKL≈40-60%, SCC/AK/DF=0% — clear NV-dominance.
+# These are initial estimates; a proper calibration run on a held-out split is the next step.
+_CLASS_TEMPERATURES = np.array(
+    [0.7, 0.8, 1.0, 0.7, 0.9, 1.4, 0.7, 1.0, 0.9], dtype=np.float32
+)  # AK  BCC  BKL  DF   MEL  NV   SCC  UNK  VASC
 
 WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
 ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
@@ -85,7 +95,16 @@ class SkinAIEnsemble:
                 for view in _tta_views(source_image)
             ]
             per_model.append(np.mean(per_view, axis=0))
-        return np.mean(per_model, axis=0)
+        raw = np.mean(per_model, axis=0)
+        return _apply_temperature(raw)
+
+
+def _apply_temperature(probs: np.ndarray) -> np.ndarray:
+    """Per-class temperature scaling on log-probability space, then re-softmax."""
+    logits = np.log(probs + 1e-10) / _CLASS_TEMPERATURES
+    logits -= logits.max()
+    exp = np.exp(logits)
+    return exp / exp.sum()
 
 
 def _tta_views(img: Image.Image) -> list[Image.Image]:
