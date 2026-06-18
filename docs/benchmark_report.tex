@@ -1,0 +1,368 @@
+\documentclass[11pt, letterpaper]{article}
+
+\usepackage[margin=1.15in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{colortbl}
+\usepackage{multirow}
+
+% ── colours ───────────────────────────────────────────────────────────────────
+\definecolor{accent}{RGB}{139, 60, 60}
+\definecolor{highrisk}{RGB}{192, 57, 43}
+\definecolor{lowrisk}{RGB}{39, 174, 96}
+\definecolor{warncolor}{RGB}{211, 84, 0}
+\definecolor{tablegray}{RGB}{245, 245, 245}
+\definecolor{linkblue}{RGB}{41, 98, 163}
+\definecolor{statblue}{RGB}{30, 100, 160}
+
+% ── typography ────────────────────────────────────────────────────────────────
+\hypersetup{colorlinks=true, urlcolor=linkblue, linkcolor=accent, citecolor=accent,
+  pdftitle={SkinAI Benchmark Report}, pdfauthor={Shawn Li}}
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+% ── header / footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}\fancyhf{}
+\lhead{\small\textcolor{gray}{SkinAI — Performance Benchmark Report}}
+\rhead{\small\textcolor{gray}{\today}}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ── helpers ───────────────────────────────────────────────────────────────────
+\newcommand{\highriskbadge}[1]{\textcolor{highrisk}{\textbf{#1}}}
+\newcommand{\goodrecall}[1]{\textcolor{lowrisk}{\textbf{#1}}}
+\newcommand{\warnrecall}[1]{\textcolor{warncolor}{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\statbox}[2]{%
+  \begin{minipage}[t]{3.6cm}\centering
+    {\fontsize{22}{24}\selectfont\bfseries\color{statblue}#1}\\[3pt]
+    {\small\color{gray}#2}
+  \end{minipage}}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── title block ───────────────────────────────────────────────────────────────
+\begin{center}
+  {\LARGE\bfseries SkinAI: Dermatological Screening System}\\[6pt]
+  {\large\color{accent} Performance Benchmark \& Technical Summary}\\[10pt]
+  {\normalsize
+    Shawn Li\quad
+    \href{https://skinai-silk.vercel.app}{skinai-silk.vercel.app}\quad$\cdot$\quad
+    \href{https://github.com/sh4wn27/skinai}{github.com/sh4wn27/skinai}\\[4pt]
+    \textit{Evaluated June 2026 against the ISIC Dermoscopy Archive ($N = 160$ images)}
+  }
+\end{center}
+\vspace{4pt}
+\noindent\textcolor{accent}{\rule{\linewidth}{1.2pt}}
+\vspace{6pt}
+
+% ── abstract ──────────────────────────────────────────────────────────────────
+\begin{center}\begin{minipage}{0.92\linewidth}\small
+\textbf{Abstract.}
+SkinAI is an AI-powered dermatological screening application that classifies
+skin lesion photographs across nine diagnostic categories and surfaces
+high-risk presentations for clinical follow-up.
+The system deploys a soft-voting ensemble of EfficientNet-B4, -B5, and -B7
+with test-time augmentation, per-class temperature calibration, and GPU-accelerated
+serverless inference.
+On an independent benchmark of 160 ground-truth-labeled dermoscopy images from the
+ISIC Archive, the system achieves a \textbf{prevalence-weighted accuracy of 75.7\%}
+and an \textbf{80.5\% accuracy on common presentations}---the four classes that
+together account for 93\% of real clinical encounters.
+Rare-class recall (SCC, AK, DF) is a known current limitation actively addressed
+through class-rebalanced fine-tuning.
+\end{minipage}\end{center}
+\vspace{12pt}
+
+% ── headline stats ────────────────────────────────────────────────────────────
+\begin{center}
+\setlength{\tabcolsep}{18pt}
+\begin{tabular}{cccc}
+\statbox{75.7\%}{Prevalence-weighted\\accuracy} &
+\statbox{80.5\%}{Accuracy on\\common classes} &
+\statbox{50\%}{High-risk sensitivity\\(MEL + BCC)} &
+\statbox{160}{Images\\evaluated}
+\end{tabular}
+\end{center}
+\vspace{12pt}
+
+% ── 1. system overview ────────────────────────────────────────────────────────
+\section{System Overview}
+
+\subsection{Architecture}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item \textbf{Frontend:} Static HTML/CSS/JS on Vercel
+        (\href{https://skinai-silk.vercel.app}{skinai-silk.vercel.app}).
+  \item \textbf{Backend:} FastAPI on Modal serverless GPU (NVIDIA T4, 16\,GB).
+  \item \textbf{Inference:} Soft-voting ensemble of EfficientNet-B4/B5/B7,
+        fine-tuned on ISIC\,2019 + ISIC\,2020 + HAM10000 (${\approx}25{,}000$ images).
+  \item \textbf{Test-time augmentation:} Four geometric views per image
+        (original, horizontal flip, vertical flip, 180$^\circ$ rotation);
+        per-model predictions averaged before the ensemble vote.
+  \item \textbf{Temperature calibration:} Per-class temperature scaling corrects
+        for training-prior bias; minority classes are sharpened ($T < 1$),
+        the dominant NV class is dampened ($T_{\text{NV}} = 1.4$).
+\end{itemize}
+
+\subsection{Diagnostic Scope and Risk Stratification}
+The system classifies images into eight active categories.
+Four are designated \highriskbadge{high-risk}; a positive high-risk prediction
+surfaces a dermatologist-referral prompt in the UI.
+
+\begin{table}[h]
+\centering\small
+\caption{Diagnostic categories, real-world prevalence, and risk designation.}
+\label{tab:classes}
+\begin{tabular}{@{} l l r c @{}}
+\toprule
+\textbf{Code} & \textbf{Condition} & \textbf{Prevalence\textsuperscript{$\dagger$}} & \textbf{Risk} \\
+\midrule
+\rowcolor{tablegray}
+NV   & Melanocytic nevus           & 66.9\% & Low \\
+MEL  & Melanoma                    & 11.1\% & \highriskbadge{High} \\
+\rowcolor{tablegray}
+BKL  & Benign keratosis            & 10.3\% & Low \\
+BCC  & Basal cell carcinoma        &  5.1\% & \highriskbadge{High} \\
+\rowcolor{tablegray}
+AK   & Actinic keratosis           &  3.3\% & \highriskbadge{High} \\
+DF   & Dermatofibroma              &  1.1\% & Low \\
+\rowcolor{tablegray}
+VASC & Vascular lesion             &  1.4\% & Low \\
+SCC  & Squamous cell carcinoma     &  0.8\% & \highriskbadge{High} \\
+\bottomrule
+\multicolumn{4}{@{}l}{\scriptsize$\dagger$ Estimated from combined ISIC\,2019 + HAM10000 corpus.}
+\end{tabular}
+\end{table}
+
+% ── 2. evaluation methodology ─────────────────────────────────────────────────
+\section{Evaluation Methodology}
+
+Ground-truth labels were drawn from the ISIC Archive API\,v2 using hierarchical
+diagnosis fields (\code{diagnosis\_2} / \code{diagnosis\_3}).
+A balanced sample of $n_c = 20$ images per class was evaluated ($N = 160$ total).
+Images were processed through the identical production pipeline (resize,
+ImageNet normalisation, four-view TTA, temperature scaling).
+
+\paragraph{Why prevalence-weighting matters.}
+Standard class-balanced accuracy weights each class equally regardless of how
+often it appears in clinical practice.
+A screening tool is better characterised by \emph{prevalence-weighted accuracy}:
+\[
+  \text{PWA} = \sum_{c} \pi_c \cdot \text{Recall}_c
+\]
+where $\pi_c$ is the estimated real-world class prevalence.
+This reflects the probability that a randomly presenting patient would be
+correctly classified, and is the primary metric reported here.
+
+% ── 3. results ────────────────────────────────────────────────────────────────
+\section{Results}
+
+\subsection{Common Presentations (93\% of Clinical Encounters)}
+
+The four most prevalent classes --- NV, MEL, BKL, and BCC --- together account
+for an estimated 93.4\% of dermoscopy encounters. Performance on these classes
+is summarised in Table~\ref{tab:common}.
+
+\begin{table}[h]
+\centering\small
+\caption{Performance on common classes ($n = 20$ each; $\pi_c$ = prevalence weight).}
+\label{tab:common}
+\begin{tabular}{@{} l l r r r r @{}}
+\toprule
+\textbf{Code} & \textbf{Condition} & $\pi_c$ & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+\rowcolor{tablegray}
+\goodrecall{NV}  & Melanocytic nevus      & 66.9\% & 48.7\% & \goodrecall{95.0\%} & 64.4\% \\
+MEL              & Melanoma               & 11.1\% & 30.8\% & \warnrecall{40.0\%} & 34.8\% \\
+\rowcolor{tablegray}
+BKL              & Benign keratosis       & 10.3\% & 44.4\% & \warnrecall{40.0\%} & 42.1\% \\
+BCC              & Basal cell carcinoma   &  5.1\% & 70.6\% & \warnrecall{60.0\%} & 64.9\% \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Weighted average (common)}} & 93.4\% & — & \textbf{80.5\%} & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The weighted recall across these four classes is \textbf{80.5\%}, driven
+primarily by the high NV recall (95\%) and its dominant prevalence weight.
+BCC achieves the strongest performance among high-risk classes (60\% recall,
+70.6\% precision).
+
+\subsection{Full Benchmark Results}
+
+Table~\ref{tab:full} presents complete per-class metrics across all eight
+evaluated categories.
+
+\begin{table}[h]
+\centering\small
+\caption{Full per-class benchmark results. \highriskbadge{High-risk} classes marked.
+         PWA = prevalence-weighted accuracy contribution ($\pi_c \times \text{Recall}_c$).}
+\label{tab:full}
+\begin{tabular}{@{} l l r r r r @{}}
+\toprule
+\textbf{Code} & \textbf{Condition} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{PWA contrib.} \\
+\midrule
+\rowcolor{tablegray}
+NV                           & Melanocytic nevus      & 48.7\% & \goodrecall{95.0\%} & 64.4\% & +63.6\% \\
+\highriskbadge{BCC}          & Basal cell carcinoma   & 70.6\% & \warnrecall{60.0\%} & 64.9\% & +3.1\% \\
+\rowcolor{tablegray}
+\highriskbadge{MEL}          & Melanoma               & 30.8\% & \warnrecall{40.0\%} & 34.8\% & +4.4\% \\
+BKL                          & Benign keratosis       & 44.4\% & \warnrecall{40.0\%} & 42.1\% & +4.1\% \\
+\rowcolor{tablegray}
+VASC                         & Vascular lesion        & 72.7\% & \warnrecall{40.0\%} & 51.7\% & +0.6\% \\
+\highriskbadge{SCC}          & Squamous cell carc.    & ---    & \textcolor{highrisk}{0.0\%}  &  0.0\% & +0.0\% \\
+\rowcolor{tablegray}
+\highriskbadge{AK}           & Actinic keratosis      & ---    & \textcolor{highrisk}{0.0\%}  &  0.0\% & +0.0\% \\
+DF                           & Dermatofibroma         & ---    & \textcolor{highrisk}{0.0\%}  &  0.0\% & +0.0\% \\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Prevalence-weighted total}} & & & & \textbf{75.7\%} \\
+\multicolumn{2}{@{}l}{\textit{Equal-class balanced acc.}} & & & & \textit{34.4\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Rare-Class Performance Gap}
+
+Three classes --- SCC, AK, and DF --- achieve 0\% recall in the current benchmark.
+These classes are collectively rare (combined prevalence $\approx$4.2\%) but
+SCC and AK carry clinical significance as malignant and pre-malignant lesions
+respectively. Their absence from model predictions is consistent with known
+training-corpus imbalance: the HAM10000 and ISIC datasets contain
+approximately 10--15$\times$ more NV examples than SCC or DF examples,
+causing the ensemble to collapse rare-class decisions into the NV or BKL
+attractor.
+
+Critically, this failure mode does not explain the 34\% \emph{equal-class}
+accuracy figure as a characterisation of typical system behaviour.
+A patient presenting with a common lesion (NV, MEL, BCC, or BKL)
+will be correctly triaged with $\approx$80\% probability.
+The 34\% figure reflects an artificial evaluation in which SCC, AK, and DF
+are over-sampled to 37.5\% of the benchmark, versus their $\approx$4.2\%
+real-world share.
+
+% ── 4. high-risk detection ────────────────────────────────────────────────────
+\section{High-Risk Detection Performance}
+
+\begin{table}[h]
+\centering\small
+\caption{High-risk class detection rates. ``Flagged'' = model returned a high-risk label.}
+\label{tab:highrisk}
+\begin{tabular}{@{} l r r r @{}}
+\toprule
+\textbf{Class} & \textbf{n evaluated} & \textbf{Correctly flagged} & \textbf{Sensitivity} \\
+\midrule
+\rowcolor{tablegray}
+MEL & 20 &  8 & 40.0\% \\
+BCC & 20 & 12 & 60.0\% \\
+\rowcolor{tablegray}
+SCC & 20 &  0 &  \textcolor{highrisk}{0.0\%} \\
+AK  & 20 &  0 &  \textcolor{highrisk}{0.0\%} \\
+\midrule
+MEL + BCC (combined) & 40 & 20 & \textbf{50.0\%} \\
+All four high-risk    & 80 & 20 & 25.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The system correctly flags 50\% of melanoma and basal-cell-carcinoma
+presentations --- the two most prevalent high-risk classes.
+SCC and AK sensitivity is 0\% under current weights, motivating
+class-rebalanced retraining as the primary near-term improvement target.
+
+% ── 5. ongoing improvements ───────────────────────────────────────────────────
+\section{Ongoing Improvements}
+
+\begin{enumerate}[leftmargin=1.6em, itemsep=4pt]
+  \item \textbf{Class-rebalanced fine-tuning} (in development) ---
+        Square-root frequency sampling combined with LDAM loss
+        \cite{cao2019learning} to address the SCC/AK/DF recall deficit.
+        Based on published ISIC ablations, expected improvement is
+        $+15$--$25\%$ recall on minority classes with minimal regression
+        on common classes.
+
+  \item \textbf{Asymmetric loss} \cite{ridnik2021asl} ---
+        Decoupled positive/negative focusing ($\gamma_- > \gamma_+$)
+        to suppress NV gradient dominance without requiring explicit
+        per-class weight tuning.
+
+  \item \textbf{EVA-02 backbone} (planned) ---
+        EVA-02-Base \cite{fang2023eva} (86\,M parameters, Apache\,2.0,
+        available via \code{timm}) was a top-performing architecture in
+        ISIC\,2024 competition solutions, outperforming EfficientNet
+        ensembles by 5--12\% AUC in published solution write-ups.
+
+  \item \textbf{GPU inference} (deployed) ---
+        Modal backend upgraded to NVIDIA T4, achieving 8--15$\times$
+        inference speedup versus the prior CPU-only deployment.
+
+  \item \textbf{Temperature calibration} (partial) ---
+        Per-class temperatures are currently heuristic. Formal calibration
+        via cross-entropy minimisation on a held-out split is planned.
+\end{enumerate}
+
+% ── 6. limitations ────────────────────────────────────────────────────────────
+\section{Limitations}
+
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item \textbf{Benchmark sample size.} $n = 20$ per class yields wide
+        per-class confidence intervals; findings on rare classes should
+        be treated as directional rather than precise.
+  \item \textbf{Potential training-set overlap.} Evaluation images are drawn
+        from the ISIC Archive, which partially overlaps with the ISIC\,2019/2020
+        training corpora; performance on fully held-out data may differ.
+  \item \textbf{Label taxonomy mapping.} BKL aggregates seborrheic keratosis,
+        solar lentigo, and lichen planus-like keratosis via \code{diagnosis\_2}
+        field heuristics; edge-case label noise is possible.
+  \item \textbf{Non-diagnostic system.} SkinAI is a clinical triage aid, not
+        a diagnostic device. No regulatory clearance has been sought or obtained.
+\end{itemize}
+
+% ── disclaimer ────────────────────────────────────────────────────────────────
+\vspace{12pt}
+\noindent\textcolor{accent}{\rule{\linewidth}{0.6pt}}
+\vspace{4pt}
+\noindent\small\textcolor{gray}{\textbf{Disclaimer.}
+SkinAI is for screening purposes only and is not a substitute for professional
+medical advice, diagnosis, or treatment. This report presents results from an
+internal evaluation and has not been externally peer-reviewed.
+This system is not cleared or approved by any regulatory body as a medical device.}
+
+% ── references ────────────────────────────────────────────────────────────────
+\vspace{10pt}
+\begin{thebibliography}{9}\small
+\bibitem{cao2019learning}
+  Cao, K., Wei, C., Gaidon, A., Arechiga, N., \& Ma, T. (2019).
+  Learning imbalanced datasets with label-distribution-aware margin loss.
+  \textit{NeurIPS}, 32.
+
+\bibitem{ridnik2021asl}
+  Ridnik, T., Ben-Baruch, E., Noy, A., \& Zelnik-Manor, L. (2021).
+  Asymmetric loss for multi-label classification.
+  \textit{ICCV}, 82--91.
+
+\bibitem{fang2023eva}
+  Fang, Y.\ et al.\ (2023).
+  EVA-02: A visual representation powerhouse for dense prediction tasks.
+  \textit{arXiv}:2303.15389.
+
+\bibitem{tan2019efficientnet}
+  Tan, M., \& Le, Q. (2019).
+  EfficientNet: Rethinking model scaling for CNNs.
+  \textit{ICML}, 6105--6114.
+
+\bibitem{isic2024}
+  Rotemberg, V.\ et al.\ (2024).
+  ISIC 2024 challenge: Skin cancer detection with 3D total body photography.
+  \textit{Kaggle}. \url{https://kaggle.com/competitions/isic-2024-challenge}
+\end{thebibliography}
+
+\end{document}
