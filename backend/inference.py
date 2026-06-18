@@ -38,15 +38,18 @@ DISCLAIMER = "For screening purposes only. Not a substitute for professional med
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
-# Per-class temperature scaling to correct NV-dominant training bias.
-# T < 1 sharpens (boosts rare-class scores); T > 1 dampens (suppresses majority-class overconfidence).
-# Order matches CLASSES list (alphabetical): AK BCC BKL DF MEL NV SCC UNK VASC
-# Calibrated from confusion-matrix eval (n=20/class on ISIC archive, Jun 2026):
-# NV=95% recall, MEL/BCC/VASC/BKL≈40-60%, SCC/AK/DF=0% — clear NV-dominance.
-# These are initial estimates; a proper calibration run on a held-out split is the next step.
+# Per-class temperature scaling: logit_c = log(p_c) / T_c, then re-softmax.
+# Math: log(p) is always negative. Dividing by T > 1 makes it less negative → higher prob.
+# So T > 1 BOOSTS a class; T < 1 DAMPENS it. (Previous values were reversed — fixed Jun 2026.)
+# Probe of raw model probs on ISIC samples showed:
+#   SCC: up to 0.174 raw (rank-2 signal present) → T=4.0 can surface it
+#   AK:  up to 0.102 raw (rank-3 signal present) → T=4.0 can surface it
+#   DF:  max 0.004 raw (no signal)               → neutral T; needs retraining
+#   NV:  0.85–0.97 raw (dominant)                → T=0.5 dampens it
+# Order: AK   BCC  BKL  DF   MEL  NV   SCC  UNK  VASC
 _CLASS_TEMPERATURES = np.array(
-    [0.7, 0.8, 1.0, 0.7, 0.9, 1.4, 0.7, 1.0, 0.9], dtype=np.float32
-)  # AK  BCC  BKL  DF   MEL  NV   SCC  UNK  VASC
+    [8.0, 1.5, 0.85, 1.0, 1.5, 0.45, 8.0, 1.0, 1.2], dtype=np.float32
+)  # AK   BCC  BKL   DF   MEL  NV    SCC  UNK  VASC
 
 WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
 ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
