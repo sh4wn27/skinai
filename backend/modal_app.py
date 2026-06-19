@@ -23,6 +23,7 @@ image = (
         "tf-keras==2.20.0",
         "pillow==11.2.1",
         "numpy==2.1.3",
+        "scikit-learn==1.5.2",  # needed for calibrated LR head
     )
     .add_local_python_source("inference", "main")
 )

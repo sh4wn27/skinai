@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence, Union
@@ -54,6 +55,23 @@ _CLASS_TEMPERATURES = np.array(
 WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
 ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
 
+# Calibrated head: sklearn Pipeline (StandardScaler + LogisticRegression) trained on
+# balanced ISIC samples. Takes log(raw_probs) as input, outputs calibrated class probs.
+# Falls back to per-class temperature scaling when not present.
+# Checks Modal volume path (/weights/calibration/head.pkl) before local path.
+def _load_calibrated_head():
+    candidates = [
+        Path(os.environ.get("SKINAI_WEIGHTS_DIR", "")) / "calibration" / "head.pkl",
+        Path(__file__).parent / "calibration" / "head.pkl",
+    ]
+    for p in candidates:
+        if p.exists():
+            with open(p, "rb") as f:
+                return pickle.load(f)
+    return None
+
+_calibrated_head = _load_calibrated_head()
+
 ImageSource = Union[str, bytes, Path]
 
 
@@ -87,9 +105,8 @@ class SkinAIEnsemble:
         _, h, w, _ = model.input_shape
         return (h, w)
 
-    def predict_probs(self, source_image: Image.Image) -> np.ndarray:
-        """Preprocess per-model with TTA (horizontal/vertical flip + 180° rotation),
-        run inference, and return the soft-voted probabilities."""
+    def _raw_ensemble_probs(self, source_image: Image.Image) -> np.ndarray:
+        """TTA soft-vote across all models, returning raw (uncalibrated) probs."""
         per_model: list[np.ndarray] = []
         for model in self.models:
             h, w = self.input_size(model)
@@ -98,8 +115,16 @@ class SkinAIEnsemble:
                 for view in _tta_views(source_image)
             ]
             per_model.append(np.mean(per_view, axis=0))
-        raw = np.mean(per_model, axis=0)
-        return _apply_temperature(raw)
+        return np.mean(per_model, axis=0)
+
+    def predict_probs(self, source_image: Image.Image) -> np.ndarray:
+        """Return calibrated class probabilities.
+
+        Uses the learned LR calibration head when available (trained on balanced
+        ISIC data), falling back to per-class temperature scaling.
+        """
+        raw = self._raw_ensemble_probs(source_image)
+        return _calibrate(raw)
 
 
 def _apply_temperature(probs: np.ndarray) -> np.ndarray:
@@ -108,6 +133,14 @@ def _apply_temperature(probs: np.ndarray) -> np.ndarray:
     logits -= logits.max()
     exp = np.exp(logits)
     return exp / exp.sum()
+
+
+def _calibrate(raw: np.ndarray) -> np.ndarray:
+    """Apply calibrated LR head if available; otherwise temperature scaling."""
+    if _calibrated_head is not None:
+        log_probs = np.log(raw + 1e-10).reshape(1, -1)
+        return _calibrated_head.predict_proba(log_probs)[0]
+    return _apply_temperature(raw)
 
 
 def _tta_views(img: Image.Image) -> list[Image.Image]:
