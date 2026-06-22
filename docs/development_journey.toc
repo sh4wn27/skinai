@@ -1,0 +1,59 @@
+\contentsline {section}{\numberline {1}Project Overview}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}What we were actually building}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}The nine conditions}{3}{subsection.1.2}%
+\contentsline {section}{\numberline {2}The Model: EfficientNet Ensemble}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}What is EfficientNet?}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Why an ensemble of three?}{4}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Training data: ISIC and HAM10000}{4}{subsection.2.3}%
+\contentsline {section}{\numberline {3}The Inference Pipeline}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}End-to-end flow}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Preprocessing}{5}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Test-Time Augmentation (TTA)}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}What is TTA and why does it help?}{5}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Our implementation}{5}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Why these four views specifically?}{6}{subsection.4.3}%
+\contentsline {section}{\numberline {5}Diagnosing the Class Imbalance Problem}{6}{section.5}%
+\contentsline {subsection}{\numberline {5.1}The misleading 80\% accuracy figure}{6}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Balanced accuracy}{6}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}How we measured it}{7}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Results: the brutal truth}{7}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Temperature Scaling: Theory and Implementation}{7}{section.6}%
+\contentsline {subsection}{\numberline {6.1}The idea}{7}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Per-class temperature scaling}{8}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}The critical bug: reversed direction}{8}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Deriving correct temperature values}{8}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Final temperature values}{9}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}Results after temperature scaling}{9}{subsection.6.6}%
+\contentsline {section}{\numberline {7}Calibrated Logistic Regression Head}{9}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Why temperature scaling hits a ceiling}{9}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Logistic regression as generalised temperature scaling}{9}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Implementation}{10}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Training data and experimental design}{10}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Results}{10}{subsection.7.5}%
+\contentsline {subsection}{\numberline {7.6}What the LR head cannot fix}{10}{subsection.7.6}%
+\contentsline {section}{\numberline {8}LDAM Fine-Tuning: The Real Fix}{11}{section.8}%
+\contentsline {subsection}{\numberline {8.1}The long-tail classification problem}{11}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Label-Distribution-Aware Margin (LDAM) loss}{11}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Deferred Re-Weighting (DRW) schedule}{12}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Fine-tuning strategy: freeze then unfreeze}{12}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}Running the fine-tuning job}{12}{subsection.8.5}%
+\contentsline {section}{\numberline {9}Deployment Architecture}{13}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Frontend: Vercel static hosting}{13}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Backend: Modal serverless GPU}{13}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}CORS configuration}{14}{subsection.9.3}%
+\contentsline {section}{\numberline {10}Bugs Encountered and Fixed}{14}{section.10}%
+\contentsline {subsection}{\numberline {10.1}window.SKINAI vs window.SkinAI}{14}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Temperature scaling direction reversal}{14}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}False positives from top-3 high-risk check}{14}{subsection.10.3}%
+\contentsline {section}{\numberline {11}Metrics and Honest Evaluation}{15}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Prevalence-weighted accuracy}{15}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Full metric table (current production)}{15}{subsection.11.2}%
+\contentsline {section}{\numberline {12}Skills and Concepts for Future Projects}{16}{section.12}%
+\contentsline {subsection}{\numberline {12.1}The 80\% accuracy trap}{16}{subsection.12.1}%
+\contentsline {subsection}{\numberline {12.2}Diagnosing without labels}{16}{subsection.12.2}%
+\contentsline {subsection}{\numberline {12.3}Post-hoc calibration hierarchy}{16}{subsection.12.3}%
+\contentsline {subsection}{\numberline {12.4}Serverless GPU workflow}{16}{subsection.12.4}%
+\contentsline {subsection}{\numberline {12.5}Ensemble design checklist}{17}{subsection.12.5}%
+\contentsline {section}{\numberline {13}Codebase Reference}{17}{section.13}%
+\contentsline {subsection}{\numberline {13.1}Re-running calibration after backbone retrain}{17}{subsection.13.1}%
+\contentsline {section}{\numberline {14}Further Reading}{18}{section.14}%

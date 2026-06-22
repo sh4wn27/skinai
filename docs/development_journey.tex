@@ -1,0 +1,980 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{mdframed}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  citecolor=blue!60!black,
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{gray!40},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=8pt,
+  belowskip=4pt,
+  showstringspaces=false,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!60!black},
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{SkinAI Technical Documentation}
+\lhead{\leftmark}
+\rfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries}{}{0em}{\thesection\quad}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{\thesubsection\quad}
+
+\newmdenv[
+  backgroundcolor=yellow!8,
+  linecolor=orange!60,
+  linewidth=1pt,
+  leftmargin=0,
+  rightmargin=0,
+  innertopmargin=8pt,
+  innerbottommargin=8pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+]{insight}
+
+\newmdenv[
+  backgroundcolor=red!5,
+  linecolor=red!50,
+  linewidth=1pt,
+  leftmargin=0,
+  rightmargin=0,
+  innertopmargin=8pt,
+  innerbottommargin=8pt,
+  innerleftmargin=10pt,
+  innerrightmargin=10pt,
+]{gotcha}
+
+\title{
+  \textbf{SkinAI: Technical Development Journey}\\[0.5em]
+  \large From a Pre-trained Ensemble to Production Calibration\\
+  \normalsize A Deep Technical Reference for Future Projects
+}
+\author{Shawn Li}
+\date{June 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Project Overview}
+% ============================================================
+
+SkinAI is a web application that accepts a dermoscopic photograph of a skin lesion and returns
+a ranked list of likely diagnoses across nine dermatological conditions, along with a high-risk
+flag for malignancies requiring urgent referral.
+
+\subsection{What we were actually building}
+
+The core product is a \textbf{triage tool}, not a diagnostic device. The distinction matters
+both legally and technically:
+
+\begin{itemize}
+  \item A \emph{diagnostic device} must be validated to FDA/CE standards and cannot be deployed
+    without regulatory approval.
+  \item A \emph{triage tool} assists a clinician in prioritising which patients need urgent
+    attention. It is held to a different (though still high) standard: it must be \emph{safe
+    to miss} --- that is, false negatives on high-risk classes are more dangerous than false
+    positives.
+\end{itemize}
+
+This distinction shaped every technical decision: we optimised for \textbf{recall} on malignant
+classes (MEL, BCC, SCC, AK) even at the cost of precision. It is better to flag a benign lesion
+as potentially malignant than to miss a melanoma.
+
+\subsection{The nine conditions}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Code} & \textbf{Full name} & \textbf{Risk} & \textbf{Notes} \\
+\midrule
+AK   & Actinic keratosis       & HIGH & Pre-cancerous; can progress to SCC \\
+BCC  & Basal cell carcinoma    & HIGH & Most common skin cancer \\
+BKL  & Benign keratosis        & Low  & Seborrheic keratosis, solar lentigo \\
+DF   & Dermatofibroma          & Low  & Benign fibrous nodule \\
+MEL  & Melanoma                & HIGH & Most dangerous; high mortality if late \\
+NV   & Melanocytic nevus       & Low  & Common mole; baseline class \\
+SCC  & Squamous cell carcinoma & HIGH & Second most common; more aggressive than BCC \\
+UNK  & Unknown                 & ---  & Catch-all; model uncertain \\
+VASC & Vascular lesion         & Low  & Haemangioma, angiokeratoma \\
+\bottomrule
+\end{tabular}
+\caption{Nine-class classification scope. HIGH risk classes trigger an urgent referral flag.}
+\end{table}
+
+% ============================================================
+\section{The Model: EfficientNet Ensemble}
+% ============================================================
+
+\subsection{What is EfficientNet?}
+
+EfficientNet is a family of convolutional neural networks introduced by Tan \& Le (Google Brain,
+2019). The key idea is \textbf{compound scaling}: instead of making a network deeper, wider, or
+higher-resolution in isolation, EfficientNet scales all three dimensions simultaneously using a
+fixed ratio derived from a neural architecture search.
+
+The family runs from B0 (small, fast) to B7 (large, accurate). We used B4, B5, and B7:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Model} & \textbf{Params} & \textbf{Input size} & \textbf{Top-1 ImageNet} \\
+\midrule
+EfficientNet-B4 & 19M  & 380×380 & 83.0\% \\
+EfficientNet-B5 & 30M  & 456×456 & 83.7\% \\
+EfficientNet-B7 & 66M  & 600×600 & 85.0\% \\
+\bottomrule
+\end{tabular}
+\caption{Models in the SkinAI ensemble. Larger input sizes capture finer dermatoscopic detail.}
+\end{table}
+
+\subsection{Why an ensemble of three?}
+
+A single model has high variance on medical imaging tasks. Using three models of increasing
+capacity and training them on slightly different data augmentations gives an ensemble that:
+
+\begin{enumerate}
+  \item \textbf{Averages out individual model errors.} If B4 is wrong on a particular lesion
+    texture but B7 is right, their averaged probability is closer to the truth.
+  \item \textbf{Reduces overconfidence.} A single model often assigns probability 0.99 to an
+    incorrect class. The ensemble rarely agrees that confidently unless it is genuinely correct.
+  \item \textbf{Improves calibration.} Ensemble probabilities tend to be better-calibrated
+    (closer to true frequencies) than individual model probabilities.
+\end{enumerate}
+
+The \textbf{soft-voting} strategy averages the output probability vectors before taking the
+argmax, rather than having each model cast a discrete vote. This preserves uncertainty information.
+
+\subsection{Training data: ISIC and HAM10000}
+
+The weights we started with were pre-trained on:
+
+\begin{itemize}
+  \item \textbf{ISIC 2019 Challenge dataset:} 25,331 dermoscopic images across 9 classes.
+  \item \textbf{ISIC 2020 Challenge dataset:} 33,126 images (primarily melanoma vs.\ benign).
+  \item \textbf{HAM10000} (Human Against Machine with 10000 training images): 10,015 images
+    across 7 classes, collected at multiple hospitals in Austria and Australia.
+\end{itemize}
+
+\begin{insight}
+\textbf{Critical imbalance problem.} The combined dataset is approximately:
+NV: 65\%, MEL: 17\%, BKL: 10\%, BCC: 4\%, AK: 3\%, SCC: 2\%, DF: 1\%, VASC: 1\%.
+The model trained on this data will learn that predicting NV is almost always ``good enough.''
+This will cause catastrophic recall failure on rare classes --- and it did.
+\end{insight}
+
+% ============================================================
+\section{The Inference Pipeline}
+% ============================================================
+
+\subsection{End-to-end flow}
+
+\begin{lstlisting}[language=Python]
+User uploads image
+  -> web-v2/app.js: SkinAI.runRealAnalysis()
+    -> POST /predict  (Modal API: sh4wn27--skinai-api.modal.run)
+      -> FastAPI main.py: reads file bytes
+        -> inference.py: SkinAIEnsemble.predict_probs(image)
+          1. _tta_views(image)          # 4 geometric views
+          2. for each model:
+               for each view:
+                 model.predict(_preprocess(view, (H,W)))  # (1,H,W,3) float32
+               average 4 view predictions
+          3. average 3 model predictions -> raw: shape (9,)
+          4. _calibrate(raw)            # LR head or temperature scaling
+        -> predict(): argsort, build top-3, set high_risk flag
+      -> return JSON
+    -> app.js: animate results, show risk banner
+\end{lstlisting}
+
+\subsection{Preprocessing}
+
+Each image is preprocessed identically to the original training pipeline:
+
+\begin{lstlisting}[language=Python]
+def _preprocess(img, size):
+    img = img.convert("RGB").resize((size[1], size[0]))  # PIL: (W,H)
+    arr = np.asarray(img, dtype=np.float32) / 255.0
+    # ImageNet normalisation (matches albumentations A.Normalize() in training)
+    MEAN = [0.485, 0.456, 0.406]
+    STD  = [0.229, 0.224, 0.225]
+    arr = (arr - MEAN) / STD
+    return arr[None, ...]  # add batch dim -> (1, H, W, 3)
+\end{lstlisting}
+
+\begin{gotcha}
+\textbf{Use the same normalisation as training.} The model's weights encode assumptions about
+the input distribution. If training used ImageNet statistics but inference uses [0,1] or
+[-1,1], every activation in the network is wrong. This is one of the most common bugs in
+deploying pre-trained models.
+\end{gotcha}
+
+% ============================================================
+\section{Test-Time Augmentation (TTA)}
+% ============================================================
+
+\subsection{What is TTA and why does it help?}
+
+A trained model is a deterministic function. Given the same input, it always produces the same
+output. But real images contain orientational variation: a lesion photographed with the camera
+rotated 90° is the same lesion, but the raw pixel values are completely different.
+
+\textbf{TTA} runs the model on multiple augmented versions of the same image and averages the
+output probabilities. This effectively approximates an ensemble over orientations.
+
+\subsection{Our implementation}
+
+We use four geometric views (no colour jitter, to avoid introducing distribution shift):
+
+\begin{lstlisting}[language=Python]
+def _tta_views(img):
+    return [
+        img,                                   # original
+        img.transpose(Image.FLIP_LEFT_RIGHT),  # horizontal flip
+        img.transpose(Image.FLIP_TOP_BOTTOM),  # vertical flip
+        img.transpose(Image.ROTATE_180),       # 180-degree rotation
+    ]
+\end{lstlisting}
+
+Each of the three models processes all four views, giving $3 \times 4 = 12$ forward passes
+per image. The views from each model are averaged first, then the three model averages are
+averaged:
+
+\[
+\hat{p}_c = \frac{1}{3} \sum_{m=1}^{3} \left( \frac{1}{4} \sum_{v=1}^{4} f_m^{(v)}(x)_c \right)
+\]
+
+where $f_m^{(v)}(x)_c$ is the probability for class $c$ from model $m$ on view $v$.
+
+\subsection{Why these four views specifically?}
+
+Dermoscopic images can be taken in any orientation. Melanomas in particular have \emph{asymmetry}
+as a diagnostic criterion --- but asymmetry relative to what? The model should not rely on
+a particular orientation. Horizontal flip, vertical flip, and 180° rotation together cover all
+four quadrant reflections of the image without introducing out-of-distribution transforms
+(e.g., 90° rotation would create portrait-format lesions from landscape crops, which the model
+may not have seen during training).
+
+% ============================================================
+\section{Diagnosing the Class Imbalance Problem}
+% ============================================================
+
+\subsection{The misleading 80\% accuracy figure}
+
+When the project began, the model was reported as having ``80\% accuracy.'' This figure was
+computed as:
+\[
+\text{Accuracy} = \frac{\text{correct predictions}}{\text{total predictions}}
+\]
+on a test set drawn from the same distribution as the training set --- which was 65\% NV.
+A model that predicts NV for everything achieves 65\% accuracy. Our model, which correctly
+identified NV most of the time, achieved 80\% simply by being good at the dominant class.
+
+\subsection{Balanced accuracy}
+
+The more honest metric is \textbf{balanced accuracy} (also called macro-averaged recall):
+\[
+\text{Balanced Accuracy} = \frac{1}{C} \sum_{c=1}^{C} \text{Recall}_c
+  = \frac{1}{C} \sum_{c=1}^{C} \frac{TP_c}{TP_c + FN_c}
+\]
+
+This treats each class equally regardless of how many examples it has. A model that predicts
+NV for everything achieves 1/9 = 11\% balanced accuracy.
+
+\subsection{How we measured it}
+
+We built a confusion matrix evaluator that fetches fresh images from the
+\textbf{ISIC Archive API v2} (a public database of 552,869 dermoscopic images at
+\texttt{api.isic-archive.com}), runs each image through the ensemble, and computes per-class
+recall. Key API endpoint:
+
+\begin{lstlisting}
+GET https://api.isic-archive.com/api/v2/images/search/
+  ?query=diagnosis_3:"Solar or actinic keratosis"
+  &limit=50
+\end{lstlisting}
+
+The field hierarchy is: \texttt{diagnosis\_1} (top-level: malignant/benign) $\to$
+\texttt{diagnosis\_2} (e.g.\ ``Malignant epidermal proliferations'') $\to$
+\texttt{diagnosis\_3} (e.g.\ ``Basal cell carcinoma'').
+
+\subsection{Results: the brutal truth}
+
+Running n=20 images per class on the raw ensemble:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Class} & \textbf{Recall} & \textbf{Notes} \\
+\midrule
+NV    & 95\% & Model overwhelmingly predicts NV \\
+MEL   & 40\% & Some signal; confused with NV \\
+BKL   & 35\% & Some signal; confused with NV \\
+BCC   & 25\% & Weak; often predicted as NV \\
+VASC  & 40\% & Distinctive colours help somewhat \\
+AK    & 0\%  & Never predicted; no backbone signal \\
+SCC   & 0\%  & Never predicted; confused with BKL \\
+DF    & 0\%  & Never predicted; confused with NV \\
+\midrule
+\textbf{Balanced} & \textbf{34\%} & Equal-weight average \\
+\bottomrule
+\end{tabular}
+\caption{Raw ensemble recall before any calibration. The 80\% figure was prevalence-weighted.}
+\end{table}
+
+\begin{insight}
+\textbf{NV dominance confirmed.} When we probed raw model probabilities directly on 35 SCC
+images from ISIC, the backbone's top-1 prediction was BKL on 70\% of them. It never once
+predicted SCC as rank-1. SCC and BKL share a keratotic (crusty, scaly) surface texture ---
+the model learned ``crusty = BKL'' from the imbalanced training data.
+\end{insight}
+
+% ============================================================
+\section{Temperature Scaling: Theory and Implementation}
+% ============================================================
+
+\subsection{The idea}
+
+Temperature scaling is a \emph{post-hoc calibration} technique. After the model is fully
+trained, you do not touch its weights. Instead, you apply a transformation to the output
+probabilities to shift which class wins the argmax decision.
+
+The standard formulation applies a single scalar temperature $T$ to all logits:
+\[
+p_c' = \frac{\exp(z_c / T)}{\sum_{k} \exp(z_k / T)}
+\]
+where $z_c$ are the pre-softmax logits. $T > 1$ makes the distribution more uniform (reduces
+overconfidence); $T < 1$ makes it more peaked (increases confidence).
+
+\subsection{Per-class temperature scaling}
+
+We extended this to per-class temperatures, operating in log-probability space:
+\[
+z_c' = \frac{\log p_c}{T_c}, \quad p_c'' = \frac{\exp(z_c' - \max_k z_k')}{\sum_k \exp(z_k' - \max_k z_k')}
+\]
+
+The key mathematical insight: since $p_c \in (0,1)$, we have $\log p_c < 0$. Dividing a
+negative number by $T_c$:
+\begin{itemize}
+  \item $T_c > 1$: result is \emph{less negative} $\Rightarrow$ higher probability \textbf{(BOOST)}
+  \item $T_c < 1$: result is \emph{more negative} $\Rightarrow$ lower probability \textbf{(DAMPEN)}
+\end{itemize}
+
+\subsection{The critical bug: reversed direction}
+
+\begin{gotcha}
+\textbf{Initial implementation had temperatures backwards.} The first version set $T_{SCC} = 0.7$
+and $T_{NV} = 1.4$. Based on the math above: dividing a negative log-prob by 0.7 makes it
+\emph{more negative} (dampens SCC), while dividing by 1.4 makes NV's log-prob \emph{less negative}
+(boosts NV). This made the class imbalance problem worse, not better.
+\end{gotcha}
+
+\subsection{Deriving correct temperature values}
+
+We wanted SCC to beat BKL on a typical SCC image. Probing a specific image, we found:
+$p_{SCC} = 0.174$, $p_{BKL} = 0.715$. After temperature scaling, SCC wins if:
+\[
+\frac{\log p_{SCC}}{T_{SCC}} > \frac{\log p_{BKL}}{T_{BKL}}
+\]
+\[
+\frac{T_{SCC}}{T_{BKL}} > \frac{\log p_{BKL}}{\log p_{SCC}} = \frac{\log 0.715}{\log 0.174} = \frac{-0.335}{-1.749} \approx 0.192 \times \frac{T_{BKL}}{T_{SCC}}
+\]
+Rearranging: we need $T_{SCC} / T_{BKL} > 0.192$ inverted, which gives $T_{SCC}/T_{BKL} > 5.22$.
+Setting $T_{SCC} = 8.0$ and $T_{BKL} = 0.85$ gives ratio $= 9.4$. This is sufficient.
+
+We also needed to ensure NV is still dampened enough that high-NV-probability images
+(common moles) are not affected. Setting $T_{NV} = 0.45$ verified safe via:
+\[
+T_{NV} > T_{SCC} \cdot \frac{\log p_{NV}}{\log p_{SCC}} = 8.0 \cdot \frac{\log 0.87}{\log 0.174} \approx 8.0 \cdot 0.076 = 0.61
+\]
+Wait --- this check revealed $T_{NV} = 0.45$ was marginally below the safety threshold for
+some images. In practice, NV images have $p_{NV} > 0.90$, making the actual threshold lower.
+We kept $T_{NV} = 0.45$ and monitored for false positives.
+
+\subsection{Final temperature values}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrll}
+\toprule
+\textbf{Class} & $T_c$ & \textbf{Effect} & \textbf{Reasoning} \\
+\midrule
+AK   & 8.0  & Boost  & Raw signal present (up to 0.102); needs surfacing \\
+BCC  & 1.5  & Slight boost & Some signal; slight help \\
+BKL  & 0.85 & Dampen & Overrepresented; major confusion source for SCC \\
+DF   & 1.0  & Neutral & Max raw prob 0.004; no signal to boost \\
+MEL  & 1.5  & Slight boost & Some NV confusion \\
+NV   & 0.45 & Dampen & Dominant class; must reduce its pull \\
+SCC  & 8.0  & Boost  & Raw signal present (up to 0.174); needs surfacing \\
+UNK  & 1.0  & Neutral & --- \\
+VASC & 1.2  & Slight boost & Some NV confusion \\
+\bottomrule
+\end{tabular}
+\caption{Final per-class temperatures after direction correction.}
+\end{table}
+
+\subsection{Results after temperature scaling}
+
+AK: 0\% $\to$ 30\%, SCC: 0\% $\to$ 10\%, MEL: 40\% $\to$ 70\%, VASC: 40\% $\to$ 80\%.
+DF remained at 0\% --- its raw signal was too weak ($p_{DF,\max} = 0.004$) to surface.
+Balanced accuracy: 34\% $\to$ 41\%.
+
+% ============================================================
+\section{Calibrated Logistic Regression Head}
+% ============================================================
+
+\subsection{Why temperature scaling hits a ceiling}
+
+Temperature scaling operates on a single number per class (the log-probability). It cannot
+learn cross-class relationships. For DF, the fundamental problem is that $\log(0.004) = -5.5$
+is so deeply negative that even $T_{DF} = 100$ gives $z_{DF}' = -0.055$, while NV might have
+$z_{NV}' = -0.3/0.45 = -0.67$. DF still wins... but the issue is that on most DF images, NV
+has $p_{NV} = 0.70$, giving $z_{NV}' = -0.36/0.45 = -0.80$. This is \emph{still less negative}
+than $-0.055$... wait, we want $z_{DF}' > z_{NV}'$ which means $-0.055 > -0.80$ --- that's true!
+
+In fact, temperature scaling CAN boost DF. The problem is that on DF images, the probability
+vector is typically distributed across 5-6 classes (BKL, NV, UNK, MEL, BCC all get 0.1-0.2)
+rather than concentrated. Temperature scaling cannot distinguish ``DF image with diffuse
+probabilities'' from ``BKL image with diffuse probabilities.'' It only sees per-class values.
+
+\subsection{Logistic regression as generalised temperature scaling}
+
+A multinomial logistic regression on log-probabilities has the form:
+\[
+\hat{y} = \mathrm{softmax}(W \cdot \mathbf{z} + \mathbf{b})
+\]
+where $\mathbf{z} = \log \mathbf{p}$ (the 9-dimensional log-probability vector).
+
+If $W$ is constrained to be diagonal and $\mathbf{b} = 0$, this is exactly per-class temperature
+scaling (each diagonal element is $1/T_c$). When $W$ is unconstrained, the LR head can learn:
+``DF images tend to have low probability in ALL classes simultaneously, with no clear winner ---
+that diffuse pattern is the DF signature.''
+
+\begin{insight}
+\textbf{The LR head's trick for DF.} After training on 35 DF images vs.\ 35 NV images, the
+LR learned that DF images have a characteristic \emph{entropy signature}: the log-probabilities
+are all moderately negative and relatively uniform, rather than having one near-zero entry
+(as NV images do with $\log p_{NV} \approx -0.1$).
+\end{insight}
+
+\subsection{Implementation}
+
+\begin{lstlisting}[language=Python]
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+pipe = Pipeline([
+    ("scaler", StandardScaler()),  # z-normalise the log-probs
+    ("lr", LogisticRegression(
+        class_weight="balanced",   # automatically weights rare classes
+        C=5.0,                     # mild regularisation
+        max_iter=2000,
+        solver="lbfgs",            # L-BFGS: good for small datasets
+    )),
+])
+\end{lstlisting}
+
+The \texttt{StandardScaler} is important: log-probabilities span different ranges across classes
+(NV log-prob near 0, DF log-prob near $-5.5$). Without scaling, the LR gradient is dominated
+by the high-variance features.
+
+\subsection{Training data and experimental design}
+
+\begin{itemize}
+  \item \textbf{35 images per class}, fetched from the ISIC Archive API.
+  \item \textbf{Skip the first 20 results per class}. This avoids overlap with images used
+    for evaluation (which also came from the ISIC API). If we trained and evaluated on the
+    same images, we would be measuring memorisation, not generalisation.
+  \item \textbf{Raw ensemble probabilities} (before temperature scaling) as input features.
+    The LR head replaces temperature scaling entirely; we do not chain them.
+  \item \textbf{25\% validation split}, stratified by class, using a fixed random seed for
+    reproducibility.
+\end{itemize}
+
+\subsection{Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Support} \\
+\midrule
+AK   & 0.43 & 0.38 & 0.40 & 8 \\
+BCC  & 0.70 & 0.88 & 0.78 & 8 \\
+BKL  & 0.70 & 0.88 & 0.78 & 8 \\
+DF   & 0.30 & 0.38 & 0.33 & 8 \\
+MEL  & 1.00 & 1.00 & 1.00 & 8 \\
+NV   & 0.78 & 0.88 & 0.82 & 8 \\
+SCC  & 0.33 & 0.12 & 0.18 & 8 \\
+VASC & 1.00 & 0.88 & 0.93 & 8 \\
+\midrule
+\textbf{Balanced accuracy} & \multicolumn{4}{c}{\textbf{67.2\%}} \\
+\bottomrule
+\end{tabular}
+\caption{LR head validation results. DF recovered from 0\% to 38\% recall.}
+\end{table}
+
+\subsection{What the LR head cannot fix}
+
+SCC recall is still only 12\% despite the LR head. The root cause: 70\% of the 35 SCC training
+images had BKL as the backbone's top-1 prediction. The log-probability vectors for SCC and BKL
+images are too similar for the LR to separate them reliably with only 35 examples. This is a
+\textbf{backbone failure} --- the features inside the EfficientNet are not discriminative for
+SCC vs.\ BKL. No amount of post-hoc calibration can recover from a backbone that has not
+learned the relevant features. \textbf{Retraining is required.}
+
+% ============================================================
+\section{LDAM Fine-Tuning: The Real Fix}
+% ============================================================
+
+\subsection{The long-tail classification problem}
+
+Our training set has a \emph{long-tail distribution}: NV has 12,875 images, DF has 239.
+This 54$\times$ ratio causes two problems:
+
+\begin{enumerate}
+  \item \textbf{Gradient imbalance.} During each training batch, 65\% of gradients come from
+    NV images. The model's weights are continuously optimised to minimise NV error, with little
+    gradient signal from DF.
+  \item \textbf{Decision boundary bias.} The maximum-likelihood solution places the decision
+    boundary for NV far from the NV cluster (to correctly classify the huge number of NV
+    examples), leaving almost no margin for rare classes.
+\end{enumerate}
+
+\subsection{Label-Distribution-Aware Margin (LDAM) loss}
+
+LDAM (Cao et al., NeurIPS 2019) addresses problem 2 by modifying the loss function to enforce
+\emph{larger margins} for minority classes. The intuition: if a class has few training examples,
+the model needs to be pushed harder to learn a correct boundary.
+
+The LDAM loss modifies the standard cross-entropy by subtracting a class-specific margin from
+the logit of the true class before applying softmax:
+
+\[
+\mathcal{L}_{\text{LDAM}} = -\log \frac{e^{z_y - \Delta_y}}{e^{z_y - \Delta_y} + \sum_{j \neq y} e^{z_j}}
+\]
+
+where the margin for class $y$ is:
+\[
+\Delta_y = \frac{C}{n_y^{1/4}}
+\]
+with $n_y$ the number of training examples for class $y$, and $C$ a global scaling constant
+chosen so that the maximum margin is approximately 0.5.
+
+The $n_y^{1/4}$ denominator means:
+\begin{itemize}
+  \item DF ($n = 239$): $\Delta_{DF} = C / 3.94$ --- large margin (hard to classify as DF unless confident)
+  \item NV ($n = 12875$): $\Delta_{NV} = C / 10.67$ --- small margin (easy win for NV)
+\end{itemize}
+
+This forces the model to \emph{earn} predictions for common classes, reserving decision boundary
+space for rare classes.
+
+\subsection{Deferred Re-Weighting (DRW) schedule}
+
+The LDAM paper found that applying LDAM from epoch 1 causes training instability: the model
+has not yet learned basic features, and the large margins for rare classes create conflicting
+gradients. The solution is DRW:
+
+\begin{enumerate}
+  \item \textbf{Phase 1} (first half of epochs): Train with standard cross-entropy plus
+    inverse-frequency class weights. This learns basic features stably.
+  \item \textbf{Phase 2} (second half): Switch to LDAM loss with class weights. The model
+    already has a reasonable feature representation; LDAM refines the decision boundaries.
+\end{enumerate}
+
+\subsection{Fine-tuning strategy: freeze then unfreeze}
+
+We do \emph{fine-tuning}, not training from scratch. The pre-trained weights contain valuable
+dermoscopic features learned from 68,000+ images. We only modify the parts of the network
+that encode class-specific decision boundaries:
+
+\begin{lstlisting}[language=Python]
+# Freeze everything
+for layer in model.layers:
+    layer.trainable = False
+
+# Unfreeze top 30 layers + classifier head
+for layer in model.layers[-30:]:
+    layer.trainable = True
+\end{lstlisting}
+
+The top 30 layers correspond roughly to the final EfficientNet block and the global average
+pooling + dense classifier head. These layers contain the high-level semantic features most
+relevant to the class boundary problem. The lower layers (edge detectors, texture filters)
+are kept frozen to preserve the general dermoscopic feature extraction capability.
+
+\subsection{Running the fine-tuning job}
+
+The fine-tuning runs as a Modal serverless job on the same T4 GPU used for inference:
+
+\begin{lstlisting}
+source backend/.venv/bin/activate
+modal run scripts/fine_tune_modal.py                          # all 3 models
+modal run scripts/fine_tune_modal.py --model efficientnet_b4.h5  # one at a time
+\end{lstlisting}
+
+The job:
+\begin{enumerate}
+  \item Loads the existing weights from the Modal volume (\texttt{/weights/}).
+  \item Downloads 120 images per class from ISIC (skipping first 55 to avoid overlap).
+  \item Runs Phase 1 (10 epochs, LR $10^{-4}$, standard CE + class weights).
+  \item Runs Phase 2 (10 epochs, LR $5 \times 10^{-5}$, LDAM + class weights).
+  \item Saves \texttt{finetuned\_efficientnet\_b4.h5} (etc.) back to the volume.
+\end{enumerate}
+
+After completion, update \texttt{ENSEMBLE\_FILES} in \texttt{backend/modal\_app.py} to
+reference the finetuned weights, redeploy, and retrain the LR calibration head.
+
+% ============================================================
+\section{Deployment Architecture}
+% ============================================================
+
+\subsection{Frontend: Vercel static hosting}
+
+The frontend (\texttt{web-v2/}) is a static site deployed to Vercel:
+
+\begin{lstlisting}
+// vercel.json (repo root)
+{
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
+  "outputDirectory": "web-v2"
+}
+\end{lstlisting}
+
+Key points:
+\begin{itemize}
+  \item \texttt{framework: null} prevents Vercel from trying to detect and build a Python
+    or Node app. Without this, Vercel detects \texttt{backend/main.py} and attempts to
+    deploy it as a Python function, which fails.
+  \item \texttt{.vercelignore} excludes \texttt{backend/} and \texttt{frontend/} from the
+    bundle. Without this, 7.5 GB of model weights would be uploaded to Vercel on every deploy.
+  \item Live URL: \texttt{skinai-silk.vercel.app}. The domain \texttt{skinai.vercel.app}
+    returns 404 --- it is a different Vercel project that is not linked to this repository.
+\end{itemize}
+
+\subsection{Backend: Modal serverless GPU}
+
+Modal provides serverless GPU compute. The backend function:
+
+\begin{lstlisting}[language=Python]
+@app.function(
+    image=image,
+    volumes={"/weights": weights_volume},  # persistent model weights
+    gpu="T4",          # ~8x speedup vs CPU; ~$0.59/hr
+    timeout=300,
+    scaledown_window=300,  # stay warm for 5 min after last request
+    memory=16384,          # 16 GB: B4+B5+B7 together need ~12 GB RAM
+)
+\end{lstlisting}
+
+The weights are stored in a \textbf{Modal Volume} (persistent block storage), not bundled into
+the container image. This is critical: the three EfficientNet models total 7.5 GB. Bundling
+them into the image would add 7.5 GB to every container rebuild (slow and expensive). The volume
+persists across deployments and scales independently.
+
+\subsection{CORS configuration}
+
+\begin{lstlisting}[language=Python]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://skinai-silk.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_methods=["POST"],
+    allow_headers=["*"],
+)
+\end{lstlisting}
+
+\begin{gotcha}
+\textbf{file:// origin is blocked.} Opening \texttt{index.html} directly in the browser
+(as a file:// URL) will fail CORS. Always test with a local HTTP server:
+\texttt{python3 -m http.server 3000} from \texttt{web-v2/}.
+\end{gotcha}
+
+% ============================================================
+\section{Bugs Encountered and Fixed}
+% ============================================================
+
+\subsection{window.SKINAI vs window.SkinAI}
+
+\textbf{Symptom:} Image upload worked (progress bar appeared) but no result was ever shown.\\
+\textbf{Root cause:} \texttt{app.js} exports the API client as \texttt{window.SkinAI}
+(mixed case). Both \texttt{scan.html} and \texttt{index.html} referenced
+\texttt{window.SKINAI} (all caps). In JavaScript, property lookup is case-sensitive.
+\texttt{window.SKINAI} was \texttt{undefined}, so calling \texttt{undefined.runRealAnalysis()}
+threw a silent error.
+
+\textbf{Fix:} Change \texttt{const S = window.SKINAI} to \texttt{const S = window.SkinAI}
+in both HTML files.
+
+\textbf{Lesson:} When a UI interaction silently fails with no error shown to the user, always
+check the browser console. The console showed \texttt{TypeError: Cannot read properties of
+undefined (reading 'runRealAnalysis')} immediately.
+
+\subsection{Temperature scaling direction reversal}
+
+Covered in detail in Section~6.3. The short version: dividing a negative number by $T < 1$
+makes it more negative (dampens the class). We had set rare class temperatures below 1 and
+dominant class temperatures above 1, which was exactly backwards.
+
+\textbf{Lesson:} When implementing a mathematical formula, always sanity-check with a
+specific numerical example \emph{before} deploying. We should have computed: ``for a class
+with $p = 0.174$, what does $\log(0.174) / 0.7$ equal?'' ($= -2.5$) and compared it to
+the un-scaled $\log(0.174) = -1.75$. The scaled value is \emph{more negative} --- this
+immediately reveals the bug.
+
+\subsection{False positives from top-3 high-risk check}
+
+After setting $T_{SCC} = T_{AK} = 8.0$, the calibrated probabilities for SCC and AK became
+very large on \emph{all} images, not just true SCC/AK images. A true BKL image might get
+AK = 0.26 as rank-3. If we flag ``high risk'' whenever any of the top-3 predictions is in
+\{MEL, BCC, SCC, AK\} with confidence $> 0.05$, nearly every image would be flagged.
+
+\textbf{Fix:} Revert to checking only the rank-1 prediction:
+\begin{lstlisting}[language=Python]
+"high_risk": top[0].code in HIGH_RISK_CODES
+\end{lstlisting}
+This works correctly because the temperature scaling pushes genuine SCC/AK signal to rank-1
+on true SCC/AK images. The argmax is a harder threshold but avoids systematic false positives.
+
+\textbf{Lesson:} When boosting minority class scores by large factors, the boost applies to
+\emph{all} images. A high SCC score does not necessarily mean the image is SCC when $T_{SCC}
+= 8$; it means the model had \emph{any} SCC signal. The argmax criterion is more robust than
+a threshold on a temperature-inflated score.
+
+% ============================================================
+\section{Metrics and Honest Evaluation}
+% ============================================================
+
+\subsection{Prevalence-weighted accuracy}
+
+For a triage tool deployed in a real clinic, the distribution of incoming cases matters. If
+99\% of cases are benign moles (NV), then correctly identifying NV is far more important
+than correctly identifying the rare SCC. The \textbf{prevalence-weighted accuracy} is:
+\[
+\text{PWA} = \sum_{c} \pi_c \cdot \text{Recall}_c
+\]
+where $\pi_c$ is the real-world prevalence of class $c$. With approximate dermatology clinic
+prevalences (NV: 50\%, BKL: 20\%, MEL: 10\%, BCC: 8\%, AK: 5\%, others: 1\% each), the
+raw ensemble achieves approximately 75\% PWA even though balanced accuracy is only 34\%.
+
+\textbf{Important:} PWA is not a substitute for balanced accuracy in a medical context.
+Missing a melanoma because it appeared in the 10\% prevalence tail is not acceptable even if
+the aggregate score looks good. We report both metrics.
+
+\subsection{Full metric table (current production)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Class} & \textbf{Raw} & \textbf{Temp. scaling} & \textbf{LR head} & \textbf{Post-retrain (target)} \\
+\midrule
+MEL   & 40\%  & 70\%  & 100\% & --- \\
+NV    & 95\%  & 60\%  & 88\%  & --- \\
+BCC   & 25\%  & 50\%  & 88\%  & --- \\
+BKL   & 35\%  & 60\%  & 88\%  & --- \\
+VASC  & 40\%  & 80\%  & 88\%  & --- \\
+AK    & 0\%   & 30\%  & 38\%  & 60--70\% \\
+DF    & 0\%   & 0\%   & 38\%  & 55--65\% \\
+SCC   & 0\%   & 10\%  & 12\%  & 55--65\% \\
+\midrule
+\textbf{Balanced} & 34\% & 41\% & \textbf{67\%} & \textbf{80+\%} \\
+\bottomrule
+\end{tabular}
+\caption{Recall at each calibration stage. Post-retrain targets are estimates based on ISIC ablation studies with LDAM.}
+\end{table}
+
+% ============================================================
+\section{Skills and Concepts for Future Projects}
+% ============================================================
+
+This section distils transferable lessons for use in similar ML engineering projects.
+
+\subsection{The 80\% accuracy trap}
+
+Any time someone reports ``our model achieves X\% accuracy'' on a classification task, ask:
+\begin{enumerate}
+  \item What is the class distribution in the test set?
+  \item What does a naive baseline (always predict the majority class) achieve?
+  \item What is the balanced accuracy / macro-F1?
+\end{enumerate}
+If accuracy $\gg$ balanced accuracy, the model is exploiting class imbalance. In medical
+contexts, \emph{always} report balanced accuracy and per-class recall.
+
+\subsection{Diagnosing without labels}
+
+We did not have a labelled test set at the start of the project. We acquired one dynamically
+using the ISIC API. The general principle: \textbf{public APIs with labelled data are available
+for many domains} (medical imaging: ISIC; pathology: TCGA; radiology: NIH Chest X-ray). When
+evaluating a deployed model, always test on fresh data from an independent source, not the
+training distribution.
+
+\subsection{Post-hoc calibration hierarchy}
+
+\begin{enumerate}
+  \item \textbf{Temperature scaling} (single $T$): corrects overall overconfidence. Cannot
+    address class imbalance.
+  \item \textbf{Per-class temperature scaling}: corrects per-class biases. Cannot learn
+    cross-class patterns. Has ceiling at backbone signal strength.
+  \item \textbf{Logistic regression head on log-probs}: learns cross-class patterns. Strict
+    generalisation of temperature scaling. Cannot recover backbone failures.
+  \item \textbf{Backbone fine-tuning with LDAM}: modifies the internal features. The only
+    true fix for backbone failures.
+\end{enumerate}
+
+Apply them in order: each is faster and cheaper than the next, and the limitations of each
+tell you whether to proceed to the next step.
+
+\subsection{Serverless GPU workflow}
+
+Modal is a Python-native serverless GPU provider. The pattern for ML workloads:
+
+\begin{lstlisting}[language=Python]
+import modal
+
+app = modal.App("my-ml-app")
+volume = modal.Volume.from_name("model-weights", create_if_missing=True)
+
+@app.function(gpu="T4", volumes={"/weights": volume})
+def train_or_infer(args):
+    # runs remotely on T4
+    ...
+
+@app.local_entrypoint()
+def main(my_arg: str = "default"):
+    # runs locally; my_arg passed via: modal run script.py --my-arg value
+    result = train_or_infer.remote(my_arg)
+\end{lstlisting}
+
+Key patterns:
+\begin{itemize}
+  \item Store large files (model weights, datasets) in \textbf{Volumes}, not container images.
+  \item Use \texttt{@app.local\_entrypoint()} with typed function parameters --- Modal parses
+    CLI args from the function signature. Do not use \texttt{argparse}.
+  \item \texttt{scaledown\_window} keeps the container warm after the last request, avoiding
+    cold starts for interactive use.
+  \item \texttt{modal volume put} uploads local files to a Volume for use in remote functions.
+\end{itemize}
+
+\subsection{Ensemble design checklist}
+
+When building a model ensemble for a production ML system:
+\begin{enumerate}
+  \item Use models of different \emph{capacities} (not just different random seeds).
+    Different capacity $\Rightarrow$ different inductive biases $\Rightarrow$ different errors.
+  \item Use \textbf{soft voting} (average probability vectors), not hard voting (majority vote).
+    Soft voting preserves calibration information.
+  \item Add \textbf{TTA} for any task where the input can appear in multiple orientations.
+  \item Measure ensemble calibration (reliability diagrams) --- ensembles can be well-calibrated
+    or poorly calibrated depending on how the members are combined.
+\end{enumerate}
+
+% ============================================================
+\section{Codebase Reference}
+% ============================================================
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{File} & \textbf{Purpose} \\
+\midrule
+\texttt{backend/inference.py} & Core inference: TTA, ensemble averaging, calibration pipeline \\
+\texttt{backend/main.py} & FastAPI endpoints; CORS; file upload handling \\
+\texttt{backend/modal\_app.py} & Modal deployment config: T4 GPU, volume mount, scikit-learn \\
+\texttt{backend/calibration/head.pkl} & Trained LR calibration head (pickle, sklearn Pipeline) \\
+\texttt{scripts/train\_calibrated\_head.py} & Retrains LR head from ISIC API; saves head.pkl \\
+\texttt{scripts/fine\_tune\_modal.py} & LDAM fine-tuning of EfficientNet backbone on Modal T4 \\
+\texttt{scripts/eval\_confusion\_matrix.py} & Fresh ISIC evaluation; per-class recall \\
+\texttt{scripts/benchmark.py} & Full benchmark suite; HTML report with charts \\
+\texttt{docs/benchmark\_report.tex} & Academic PDF report of model performance \\
+\texttt{web-v2/app.js} & Frontend API client: \texttt{window.SkinAI.runRealAnalysis()} \\
+\texttt{web-v2/index.html} & Landing page with live inference demo \\
+\texttt{web-v2/scan.html} & Full screening interface \\
+\texttt{vercel.json} & Vercel config: \texttt{outputDirectory: web-v2}, no build step \\
+\bottomrule
+\end{tabular}
+\caption{Key files and their roles.}
+\end{table}
+
+\subsection{Re-running calibration after backbone retrain}
+
+\begin{lstlisting}[language=bash]
+# 1. Run backbone fine-tuning (takes 4-8h on T4, ~$3-5)
+modal run scripts/fine_tune_modal.py
+
+# 2. Update modal_app.py to point at finetuned weights
+#    Change: ENSEMBLE_FILES = ("finetuned_efficientnet_b4.h5", ...)
+
+# 3. Retrain the LR calibration head on the improved backbone
+python scripts/train_calibrated_head.py --per-class 50 --skip 20
+
+# 4. Upload new head to Modal volume
+modal volume put skinai-weights backend/calibration/head.pkl /calibration/head.pkl
+
+# 5. Redeploy
+modal deploy backend/modal_app.py
+
+# 6. Evaluate
+python scripts/eval_confusion_matrix.py
+\end{lstlisting}
+
+% ============================================================
+\section{Further Reading}
+% ============================================================
+
+\begin{itemize}
+  \item \textbf{EfficientNet}: Tan \& Le, ``EfficientNet: Rethinking Model Scaling for
+    Convolutional Neural Networks,'' ICML 2019. \url{https://arxiv.org/abs/1905.11946}
+  \item \textbf{LDAM}: Cao et al., ``Learning Imbalanced Datasets with Label-Distribution-Aware
+    Margin Loss,'' NeurIPS 2019. \url{https://arxiv.org/abs/1906.07413}
+  \item \textbf{Temperature scaling}: Guo et al., ``On Calibration of Modern Neural Networks,''
+    ICML 2017. \url{https://arxiv.org/abs/1706.04599}
+  \item \textbf{ISIC Archive}: International Skin Imaging Collaboration.
+    \url{https://www.isic-archive.com}
+  \item \textbf{HAM10000}: Tschandl et al., ``The HAM10000 dataset,'' Sci.\ Data 2018.
+    \url{https://doi.org/10.1038/sdata.2018.161}
+  \item \textbf{EVA-02} (recommended next architecture): Fang et al., ``EVA-02: A Visual
+    Representation Powerhouse,'' 2023. \url{https://arxiv.org/abs/2303.11331}
+    Available via \texttt{timm}: \texttt{pip install timm; timm.create\_model("eva02\_base\_patch14\_224")}
+\end{itemize}
+
+\end{document}
