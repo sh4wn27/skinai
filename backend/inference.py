@@ -53,7 +53,13 @@ _CLASS_TEMPERATURES = np.array(
 )  # AK   BCC  BKL   DF   MEL  NV    SCC  UNK  VASC
 
 WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
-ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
+
+def _pick_weights(base: str) -> str:
+    """Return finetuned_<base> if it exists in WEIGHTS_DIR, otherwise <base>."""
+    finetuned = WEIGHTS_DIR / f"finetuned_{base}"
+    return f"finetuned_{base}" if finetuned.exists() else base
+
+ENSEMBLE_FILES = tuple(_pick_weights(f) for f in ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5"))
 
 # Calibrated head: sklearn Pipeline (StandardScaler + LogisticRegression) trained on
 # balanced ISIC samples. Takes log(raw_probs) as input, outputs calibrated class probs.
