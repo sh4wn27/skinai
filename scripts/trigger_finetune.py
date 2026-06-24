@@ -16,7 +16,7 @@ fine_tune_model = modal.Function.from_name("skinai-finetune", "fine_tune_model")
 models = sys.argv[1:] if len(sys.argv) > 1 else ["efficientnet_b5.h5", "efficientnet_b7.h5"]
 
 for m in models:
-    handle = fine_tune_model.spawn(m, per_class=60, skip=55, epochs=20)
+    handle = fine_tune_model.spawn(m, per_class=150, skip=80, epochs=25)
     print(f"Spawned {m} → {handle.object_id}")
 
 print("\nJobs are running on Modal's servers — safe to close your laptop.")

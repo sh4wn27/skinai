@@ -24,6 +24,7 @@ image = (
         "pillow==11.2.1",
         "numpy==2.1.3",
         "scikit-learn==1.5.2",  # needed for calibrated LR head
+        "slowapi==0.1.9",       # rate limiting
     )
     .add_local_python_source("inference", "main")
 )

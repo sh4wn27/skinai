@@ -68,14 +68,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model_file")
     ap.add_argument("--weights-dir", default="/weights")
-    ap.add_argument("--per-class", type=int, default=60)
-    ap.add_argument("--skip", type=int, default=55)
-    ap.add_argument("--epochs", type=int, default=20)
+    ap.add_argument("--per-class", type=int, default=150)
+    ap.add_argument("--skip", type=int, default=80)
+    ap.add_argument("--epochs", type=int, default=25)
+    ap.add_argument("--unfreeze", type=int, default=15)
     args = ap.parse_args()
 
     print(f"\n{'='*60}", flush=True)
     print(f"Fine-tuning {args.model_file}", flush=True)
-    print(f"per_class={args.per_class}  skip={args.skip}  epochs={args.epochs}", flush=True)
+    print(f"per_class={args.per_class}  skip={args.skip}  epochs={args.epochs}  unfreeze={args.unfreeze}", flush=True)
     print(f"{'='*60}\n", flush=True)
 
     model_path = f"{args.weights_dir}/{args.model_file}"
@@ -83,12 +84,15 @@ def main():
     _, H, W, _ = model.input_shape
     print(f"Loaded — input {H}×{W}", flush=True)
 
+    # Only unfreeze the top N layers — everything else stays frozen.
+    # 15 layers ≈ last conv block + classifier head. Keeps backbone features intact.
+    # Previous run used 30 layers (~146M params for 480 samples) → catastrophic forgetting.
     for layer in model.layers:
         layer.trainable = False
-    for layer in model.layers[-30:]:
+    for layer in model.layers[-args.unfreeze:]:
         layer.trainable = True
     trainable = sum(p.numpy().size for p in model.trainable_weights)
-    print(f"Trainable params: {trainable:,}", flush=True)
+    print(f"Trainable params: {trainable:,} (last {args.unfreeze} layers)", flush=True)
 
     # Download images
     X_uint8, y, class_counts = [], [], {}
@@ -114,9 +118,10 @@ def main():
     y = np.array(y, dtype=np.int32)
     print(f"\nTotal: {len(y)} images", flush=True)
 
-    # LDAM margins
-    C = 0.5 / max(1.0 / max(1, _TRAIN_CLASS_COUNTS[c]) ** 0.25
-                  for c in CLASSES if c != "UNK")
+    # LDAM margins — C scaled down to 0.25 (was 0.5) to avoid over-pushing rare classes
+    # with only 15 unfrozen layers. Gentler push preserves majority-class recall.
+    C = 0.25 / max(1.0 / max(1, _TRAIN_CLASS_COUNTS[c]) ** 0.25
+                   for c in CLASSES if c != "UNK")
     margins = np.array([
         C / max(1, _TRAIN_CLASS_COUNTS[c]) ** 0.25 if c != "UNK" else 0.0
         for c in CLASSES
@@ -139,16 +144,34 @@ def main():
     y_onehot = np.zeros((len(y), len(CLASSES)), dtype=np.float32)
     y_onehot[np.arange(len(y)), y] = 1.0
 
-    lr_cb = keras.callbacks.ReduceLROnPlateau(monitor="loss", factor=0.5, patience=3, min_lr=1e-6, verbose=1)
+    es_cb  = keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True, verbose=1)
+    lr_cb  = keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, min_lr=1e-7, verbose=1)
     drw = args.epochs // 2
 
-    print(f"\nPhase 1: CE, {drw} epochs", flush=True)
-    model.compile(optimizer=keras.optimizers.Adam(1e-4), loss="categorical_crossentropy", metrics=["accuracy"])
-    model.fit(X, y_onehot, batch_size=16, epochs=drw, class_weight=class_weights, shuffle=True, callbacks=[lr_cb], verbose=1)
+    # LR 10× lower than v1: 5e-5 / 1e-5. Fewer unfrozen params → less risk of forgetting.
+    print(f"\nPhase 1: CE, up to {drw} epochs", flush=True)
+    model.compile(
+        optimizer=keras.optimizers.Adam(5e-5),
+        loss="categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+    model.fit(
+        X, y_onehot, batch_size=32, epochs=drw,
+        validation_split=0.15, class_weight=class_weights,
+        shuffle=True, callbacks=[lr_cb, es_cb], verbose=1,
+    )
 
-    print(f"\nPhase 2: LDAM, {args.epochs - drw} epochs", flush=True)
-    model.compile(optimizer=keras.optimizers.Adam(5e-5), loss=ldam_loss, metrics=["accuracy"])
-    model.fit(X, y_onehot, batch_size=16, epochs=args.epochs - drw, class_weight=class_weights, shuffle=True, callbacks=[lr_cb], verbose=1)
+    print(f"\nPhase 2: LDAM, up to {args.epochs - drw} epochs", flush=True)
+    model.compile(
+        optimizer=keras.optimizers.Adam(1e-5),
+        loss=ldam_loss,
+        metrics=["accuracy"],
+    )
+    model.fit(
+        X, y_onehot, batch_size=32, epochs=args.epochs - drw,
+        validation_split=0.15, class_weight=class_weights,
+        shuffle=True, callbacks=[lr_cb, es_cb], verbose=1,
+    )
 
     out = f"{args.weights_dir}/finetuned_{args.model_file}"
     model.save(out)
