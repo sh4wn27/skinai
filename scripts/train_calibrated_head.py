@@ -95,10 +95,20 @@ def main() -> None:
                     help="Skip first N API results to avoid eval-set overlap")
     ap.add_argument("--val-split", type=float, default=0.25,
                     help="Fraction held out for validation")
+    ap.add_argument("--finetuned", action="store_true",
+                    help="Use finetuned_efficientnet_b{4,5,7}.h5 instead of originals")
     args = ap.parse_args()
 
     print("Loading ensemble...", file=sys.stderr)
-    ensemble = SkinAIEnsemble()
+    if args.finetuned:
+        ensemble = SkinAIEnsemble(
+            ensemble_files=("finetuned_efficientnet_b4.h5",
+                            "finetuned_efficientnet_b5.h5",
+                            "finetuned_efficientnet_b7.h5")
+        )
+        print("  Using finetuned backbone weights", file=sys.stderr)
+    else:
+        ensemble = SkinAIEnsemble()
 
     X_all, y_all = [], []
 

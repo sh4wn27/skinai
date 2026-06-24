@@ -67,10 +67,20 @@ def main() -> None:
     ap.add_argument("--per-class", type=int, default=20)
     ap.add_argument("--skip", type=int, default=0,
                     help="skip first N results per class (use to avoid overlap with training set)")
+    ap.add_argument("--finetuned", action="store_true",
+                    help="load finetuned_efficientnet_b{4,5,7}.h5 instead of originals")
     args = ap.parse_args()
 
-    print("Loading ensemble (B4 + B5 + B7)...", file=sys.stderr)
-    ensemble = SkinAIEnsemble()
+    if args.finetuned:
+        print("Loading finetuned ensemble...", file=sys.stderr)
+        ensemble = SkinAIEnsemble(
+            ensemble_files=("finetuned_efficientnet_b4.h5",
+                            "finetuned_efficientnet_b5.h5",
+                            "finetuned_efficientnet_b7.h5")
+        )
+    else:
+        print("Loading ensemble (B4 + B5 + B7)...", file=sys.stderr)
+        ensemble = SkinAIEnsemble()
 
     codes = list(CLASS_QUERIES.keys())
     confusion: dict[str, dict[str, int]] = {t: {p: 0 for p, _ in CLASSES} for t in codes}
