@@ -39,11 +39,11 @@ CLASS_QUERIES: dict[str, list[tuple[str, str]]] = {
 }
 
 
-def fetch_samples(code: str, n: int) -> list[dict]:
-    """Round-robin across a class's queries until n samples are collected."""
+def fetch_samples(code: str, n: int, skip: int = 0) -> list[dict]:
+    """Fetch n samples for a class, skipping the first `skip` results."""
     samples: list[dict] = []
     for field, value in CLASS_QUERIES[code]:
-        remaining = n - len(samples)
+        remaining = n + skip - len(samples)
         if remaining <= 0:
             break
         resp = requests.get(
@@ -53,7 +53,7 @@ def fetch_samples(code: str, n: int) -> list[dict]:
         )
         resp.raise_for_status()
         samples.extend(resp.json()["results"])
-    return samples[:n]
+    return samples[skip : skip + n]
 
 
 def download_image(url: str) -> bytes:
@@ -65,6 +65,8 @@ def download_image(url: str) -> bytes:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-class", type=int, default=20)
+    ap.add_argument("--skip", type=int, default=0,
+                    help="skip first N results per class (use to avoid overlap with training set)")
     args = ap.parse_args()
 
     print("Loading ensemble (B4 + B5 + B7)...", file=sys.stderr)
@@ -75,7 +77,7 @@ def main() -> None:
     total = correct = 0
 
     for true_code in codes:
-        samples = fetch_samples(true_code, args.per_class)
+        samples = fetch_samples(true_code, args.per_class, skip=args.skip)
         print(f"\n{true_code}: fetched {len(samples)} samples", file=sys.stderr)
         for s in samples:
             try:
