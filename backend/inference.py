@@ -1,8 +1,9 @@
-"""SkinAI inference: EfficientNet B4/B5/B7 ensemble + EVA-02-Base soft ensemble.
+"""SkinAI inference: EfficientNet B4/B5/B7 ensemble + EVA-02-Base.
 
-EfficientNet (ISIC-trained) + EVA-02 (ImageNet → LR head) predictions are averaged.
-EVA-02 adds strong VASC/BKL/BCC signal that the EfficientNet backbone misses.
-Falls back gracefully to EfficientNet-only if EVA-02 weights aren't available.
+Three prediction modes (auto-selected by which calibration files exist):
+  1. joint_head.pkl  → single GBM on EfficientNet log_probs (9) + EVA-02 PCA (50)
+  2. head.pkl + eva02_head.pkl  → soft average of two separate LR heads
+  3. head.pkl only  → EfficientNet LR head (or temperature scaling if absent)
 """
 
 from __future__ import annotations
@@ -77,13 +78,24 @@ def _load_eva02_head() -> tuple | None:
     return None
 
 
+def _load_joint_head() -> dict | None:
+    """Return joint-head dict {model, scaler_eva, pca, classes} or None."""
+    p = _calibration_path("joint_head.pkl")
+    if p:
+        with open(p, "rb") as f:
+            return pickle.load(f)
+    return None
+
+
 _calibrated_head = _load_calibrated_head()
 _eva02_head_data = _load_eva02_head()
+_joint_head     = _load_joint_head()
 
 
 def _load_eva02_model():
     """Lazy-load EVA-02-Base from timm. Returns (model, transform) or (None, None)."""
-    if _eva02_head_data is None:
+    needs_eva = _joint_head is not None or _eva02_head_data is not None
+    if not needs_eva:
         return None, None
     try:
         import timm
@@ -171,12 +183,40 @@ def _eva02_probs(img: Image.Image) -> np.ndarray | None:
     tensor = _eva02_transform(img).unsqueeze(0)
     with torch.no_grad():
         feat = _eva02_model(tensor).squeeze(0).numpy()
-    raw = pipe.predict_proba(feat.reshape(1, -1))[0]  # len = len(classes_)
+    raw = pipe.predict_proba(feat.reshape(1, -1))[0]
 
     # Expand into full 9-class array (EVA-02 head was trained without UNK samples)
     full = np.zeros(len(CLASSES), dtype=np.float64)
     for col, cls_idx in enumerate(classes_):
         full[cls_idx] = raw[col]
+    s = full.sum()
+    if s > 0:
+        full /= s
+    return full
+
+
+def _joint_probs(raw_eff: np.ndarray, img: Image.Image) -> np.ndarray | None:
+    """GBM joint-head on EfficientNet log_probs + EVA-02 PCA features → 9-class probs."""
+    if _joint_head is None or _eva02_model is None:
+        return None
+    import torch
+    scaler_eva = _joint_head["scaler_eva"]
+    pca        = _joint_head["pca"]
+    model      = _joint_head["model"]
+
+    eff_feat = np.log(raw_eff + 1e-10).reshape(1, -1)          # (1, 9)
+    tensor = _eva02_transform(img).unsqueeze(0)
+    with torch.no_grad():
+        eva_raw = _eva02_model(tensor).squeeze(0).numpy()
+    eva_feat = pca.transform(scaler_eva.transform(eva_raw.reshape(1, -1)))  # (1, 50)
+    X = np.concatenate([eff_feat, eva_feat], axis=1)            # (1, 59)
+
+    probs_partial = model.predict_proba(X)[0]
+    classes_seen  = model.classes_
+
+    full = np.zeros(len(CLASSES), dtype=np.float64)
+    for col, cls_idx in enumerate(classes_seen):
+        full[cls_idx] = probs_partial[col]
     s = full.sum()
     if s > 0:
         full /= s
@@ -212,10 +252,16 @@ def _open_image(source: ImageSource) -> Image.Image:
 
 def predict(ensemble: SkinAIEnsemble, source: ImageSource, top_k: int = 3) -> dict:
     img = _open_image(source)
-    eff_probs = ensemble.predict_probs(img)
-    eva_probs = _eva02_probs(img)
+    raw = ensemble._raw_ensemble_probs(img)   # raw EfficientNet ensemble probs
 
-    probs = (eff_probs + eva_probs) / 2 if eva_probs is not None else eff_probs
+    if _joint_head is not None and _eva02_model is not None:
+        # Mode 1: joint GBM sees both models' features simultaneously
+        _p = _joint_probs(raw, img)
+        probs = _p if _p is not None else _calibrate_eff(raw)
+    else:
+        eff_probs = _calibrate_eff(raw)
+        eva_probs = _eva02_probs(img)
+        probs = (eff_probs + eva_probs) / 2 if eva_probs is not None else eff_probs
 
     order = np.argsort(probs)[::-1][:top_k]
     top = [
