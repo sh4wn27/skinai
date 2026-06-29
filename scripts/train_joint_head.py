@@ -178,7 +178,6 @@ def main() -> None:
 
     # Eval
     classes_present = sorted(set(y_ev))
-    names = [CLASSES[i][0] for i in classes_present]
 
     y_gbm = gbm.predict(X_ev)
     y_lr  = lr.predict(X_ev)

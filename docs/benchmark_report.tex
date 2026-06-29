@@ -100,7 +100,7 @@ through class-rebalanced fine-tuning.
 
 \subsection{Architecture}
 \begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Frontend:} Static HTML/CSS/JS on Vercel
+  \item \textbf{Frontend:} Next.js (App Router) + Tailwind CSS on Vercel
         (\href{https://skinai-silk.vercel.app}{skinai-silk.vercel.app}).
   \item \textbf{Backend:} FastAPI on Modal serverless GPU (NVIDIA T4, 16\,GB).
   \item \textbf{Inference:} Soft-voting ensemble of EfficientNet-B4/B5/B7,
@@ -279,34 +279,45 @@ SCC and AK sensitivity is 0\% under current weights, motivating
 class-rebalanced retraining as the primary near-term improvement target.
 
 % ── 5. ongoing improvements ───────────────────────────────────────────────────
-\section{Ongoing Improvements}
+\section{Architecture Improvements (Post-Benchmark)}
+
+Since the initial benchmark, the following changes have been implemented or evaluated:
 
 \begin{enumerate}[leftmargin=1.6em, itemsep=4pt]
-  \item \textbf{Class-rebalanced fine-tuning} (in development) ---
-        Square-root frequency sampling combined with LDAM loss
-        \cite{cao2019learning} to address the SCC/AK/DF recall deficit.
-        Based on published ISIC ablations, expected improvement is
-        $+15$--$25\%$ recall on minority classes with minimal regression
-        on common classes.
+  \item \textbf{LDAM fine-tuning} (explored, abandoned) ---
+        Two rounds of LDAM loss \cite{cao2019learning} fine-tuning were attempted
+        (Phase 1: 30 unfrozen layers; Phase 2: 15 layers, conservative LR).
+        Both caused catastrophic forgetting: the backbone collapsed
+        ${\geq}90\%$ of inputs into the UNK attractor.
+        The EfficientNet backbone is now frozen permanently;
+        all future recall improvements target the classification head.
 
-  \item \textbf{Asymmetric loss} \cite{ridnik2021asl} ---
-        Decoupled positive/negative focusing ($\gamma_- > \gamma_+$)
-        to suppress NV gradient dominance without requiring explicit
-        per-class weight tuning.
+  \item \textbf{EVA-02-Base feature extractor} (deployed) ---
+        EVA-02-Base \cite{fang2023eva} (86\,M parameters, 448$\times$448 input)
+        is now used as a frozen feature extractor alongside EfficientNet.
+        On a 50-image-per-class held-out set, EVA-02 achieves complementary
+        per-class strengths: VASC $\approx$92\%, DF $\approx$83\%,
+        versus EfficientNet's NV/DF dominance.
+        A calibrated logistic-regression head is trained on the 768-dim embeddings
+        and the two heads are averaged at inference (soft ensemble).
 
-  \item \textbf{EVA-02 backbone} (planned) ---
-        EVA-02-Base \cite{fang2023eva} (86\,M parameters, Apache\,2.0,
-        available via \code{timm}) was a top-performing architecture in
-        ISIC\,2024 competition solutions, outperforming EfficientNet
-        ensembles by 5--12\% AUC in published solution write-ups.
+  \item \textbf{Joint GBM head} (in progress) ---
+        A single GradientBoostingClassifier trained on 59-dim concatenated
+        features (EfficientNet log-probs, 9-dim; EVA-02 PCA-reduced embeddings,
+        50-dim) replaces the separate averaging approach.
+        By exposing cross-model signals to one classifier, this allows the model
+        to learn per-class routing (e.g.\ trust EVA-02 for VASC, EfficientNet for AK).
+        Training on 150 ISIC images per class is underway.
 
   \item \textbf{GPU inference} (deployed) ---
-        Modal backend upgraded to NVIDIA T4, achieving 8--15$\times$
-        inference speedup versus the prior CPU-only deployment.
+        Modal backend runs on NVIDIA T4 with 20\,GB RAM,
+        accommodating EfficientNet (${\approx}12$\,GB) and EVA-02 (${\approx}2$\,GB)
+        simultaneously with 8--15$\times$ speedup over prior CPU deployment.
 
-  \item \textbf{Temperature calibration} (partial) ---
-        Per-class temperatures are currently heuristic. Formal calibration
-        via cross-entropy minimisation on a held-out split is planned.
+  \item \textbf{Calibrated LR head} (deployed) ---
+        Per-class temperature scaling is replaced by a logistic-regression head
+        trained on log-transformed ensemble outputs. This provides learned
+        re-calibration rather than hand-tuned temperatures.
 \end{enumerate}
 
 % ── 6. limitations ────────────────────────────────────────────────────────────

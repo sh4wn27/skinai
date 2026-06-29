@@ -177,7 +177,6 @@ def main() -> None:
     y_avg = classes_[np.argmax(avg_probs_ev, axis=1)]
 
     classes_present = sorted(set(y_ev))
-    names = [CLASSES[i][0] for i in classes_present]
 
     def bal(pred): return balanced_accuracy_score(y_ev, pred)
 

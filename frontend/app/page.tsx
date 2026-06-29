@@ -4,7 +4,7 @@ import ScanWidget from '@/components/ScanWidget'
 
 const stats = [
   { value: '25,000+', label: 'Training Images' },
-  { value: 'B4 · B5 · B7', label: 'EfficientNet Ensemble' },
+  { value: 'EfficientNet + EVA-02', label: 'Dual-Backbone Ensemble' },
   { value: '9', label: 'Conditions Detected' },
 ]
 
@@ -27,7 +27,7 @@ const conditions = [
   { code: 'MEL', name: 'Melanoma', highRisk: true },
   { code: 'NV', name: 'Melanocytic nevus', highRisk: false },
   { code: 'BCC', name: 'Basal cell carcinoma', highRisk: true },
-  { code: 'AK', name: 'Actinic keratosis', highRisk: false },
+  { code: 'AK', name: 'Actinic keratosis', highRisk: true },
   { code: 'BKL', name: 'Benign keratosis', highRisk: false },
   { code: 'DF', name: 'Dermatofibroma', highRisk: false },
   { code: 'VASC', name: 'Vascular lesion', highRisk: false },
@@ -36,12 +36,12 @@ const conditions = [
 ]
 
 const modelFacts = [
-  { label: 'Architecture', value: 'EfficientNet B4 · B5 · B7' },
-  { label: 'Ensemble', value: 'Soft-vote (mean probs)' },
+  { label: 'Backbones', value: 'EfficientNet B4/B5/B7 + EVA-02' },
+  { label: 'Classifier', value: 'Joint GBM (59-dim features)' },
   { label: 'Training data', value: 'ISIC 2019 + 2020 + HAM10000' },
   { label: 'Training images', value: '25,000+' },
   { label: 'Output classes', value: '9 conditions' },
-  { label: 'High-risk flags', value: 'MEL · BCC · SCC' },
+  { label: 'High-risk flags', value: 'MEL · BCC · SCC · AK' },
 ]
 
 export default function HomePage() {
@@ -140,7 +140,7 @@ export default function HomePage() {
             ))}
           </div>
           <p className="text-zinc-300 text-xs mt-5 font-light">
-            Melanoma, BCC, and SCC are flagged high-risk and trigger a dermatologist recommendation.
+            Melanoma, BCC, SCC, and AK are flagged high-risk and trigger a dermatologist recommendation.
           </p>
         </div>
       </section>
@@ -178,23 +178,19 @@ export default function HomePage() {
               </a>
             </div>
             <pre className="bg-zinc-900 text-zinc-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">
-              <code>{`# Soft-voting ensemble
-def predict_probs(self, img):
-    per_model = []
-    for model in self.models:          # B4, B5, B7
-        h, w = self.input_size(model)
-        arr  = _preprocess(img, (h, w))
-        per_model.append(model.predict(arr)[0])
-    return np.mean(per_model, axis=0)  # soft vote
-
-# ImageNet normalization
-arr = (img_array / 255.0 - [0.485,0.456,0.406]) \
-                         / [0.229,0.224,0.225]`}</code>
+              <code>{`# Joint GBM: EfficientNet log_probs (9) + EVA-02 PCA (50)
+def predict(ensemble, img):
+    raw = ensemble._raw_ensemble_probs(img)   # B4+B5+B7
+    eff = np.log(raw + 1e-10)                 # 9-dim
+    eva = eva02_model(img)                    # 768-dim
+    eva_pca = pca.transform(scaler.transform(eva))  # 50-dim
+    X = np.concatenate([eff, eva_pca])        # 59-dim
+    return joint_gbm.predict_proba(X)         # 9 classes`}</code>
             </pre>
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center mt-6">
-            {['Python 3.11', 'TensorFlow 2.20', 'tf-keras', 'FastAPI', 'Next.js 14', 'Modal'].map((t) => (
+            {['Python 3.11', 'TensorFlow 2.20', 'PyTorch', 'timm', 'FastAPI', 'Next.js', 'Modal'].map((t) => (
               <span key={t} className="px-3 py-1 bg-white border border-zinc-200 rounded-full text-xs font-light text-zinc-500">
                 {t}
               </span>
