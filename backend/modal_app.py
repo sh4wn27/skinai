@@ -23,8 +23,11 @@ image = (
         "tf-keras==2.20.0",
         "pillow==11.2.1",
         "numpy==2.1.3",
-        "scikit-learn==1.5.2",  # needed for calibrated LR head
+        "scikit-learn==1.5.2",  # calibrated LR head
         "slowapi==0.1.9",       # rate limiting
+        "timm==1.0.15",         # EVA-02-Base feature extractor
+        "torch==2.6.0",         # timm dependency (CPU-only for feature extraction)
+        "torchvision==0.21.0",
     )
     .add_local_python_source("inference", "main")
 )
@@ -38,11 +41,14 @@ weights_volume = modal.Volume.from_name("skinai-weights", create_if_missing=True
     gpu="T4",
     timeout=300,
     scaledown_window=300,  # keep warm for 5 min after last request
-    memory=16384,  # 16 GB — B4+B5+B7 together need ~12 GB RAM
+    memory=20480,  # 20 GB — EfficientNet ~12 GB + EVA-02 ~2 GB
 )
 @modal.asgi_app()
 def api():
     import os
     os.environ["SKINAI_WEIGHTS_DIR"] = "/weights"
+    # Cache timm/HF model downloads in the persistent volume so EVA-02
+    # is only downloaded once (first cold start) and reused thereafter.
+    os.environ["HF_HOME"] = "/weights/hf_cache"
     from main import app as fastapi_app
     return fastapi_app

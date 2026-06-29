@@ -1,19 +1,19 @@
-"""SkinAI inference: EfficientNet B4/B5/B7 soft-voting ensemble.
+"""SkinAI inference: EfficientNet B4/B5/B7 ensemble + EVA-02-Base soft ensemble.
 
-Trained on ISIC 2019 + ISIC 2020 + HAM10000 for 9-class skin-lesion classification.
-Output JSON shape matches the API spec in the project CLAUDE.md.
+EfficientNet (ISIC-trained) + EVA-02 (ImageNet → LR head) predictions are averaged.
+EVA-02 adds strong VASC/BKL/BCC signal that the EfficientNet backbone misses.
+Falls back gracefully to EfficientNet-only if EVA-02 weights aren't available.
 """
 
 from __future__ import annotations
 
 import base64
 import io
+import os
 import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence, Union
-
-import os
 
 import numpy as np
 from PIL import Image
@@ -35,42 +35,71 @@ CLASSES: list[tuple[str, str]] = [
 HIGH_RISK_CODES = {"MEL", "BCC", "SCC", "AK"}
 DISCLAIMER = "For screening purposes only. Not a substitute for professional medical advice."
 
-# ImageNet statistics — matches A.Normalize() used in training (pre_train.py).
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
-# Per-class temperature scaling: logit_c = log(p_c) / T_c, then re-softmax.
-# Math: log(p) is always negative. Dividing by T > 1 makes it less negative → higher prob.
-# So T > 1 BOOSTS a class; T < 1 DAMPENS it. (Previous values were reversed — fixed Jun 2026.)
-# Probe of raw model probs on ISIC samples showed:
-#   SCC: up to 0.174 raw (rank-2 signal present) → T=4.0 can surface it
-#   AK:  up to 0.102 raw (rank-3 signal present) → T=4.0 can surface it
-#   DF:  max 0.004 raw (no signal)               → neutral T; needs retraining
-#   NV:  0.85–0.97 raw (dominant)                → T=0.5 dampens it
-# Order: AK   BCC  BKL  DF   MEL  NV   SCC  UNK  VASC
+# Per-class temperature scaling fallback (used only when LR head is absent).
+# T > 1 BOOSTS a class; T < 1 DAMPENS. Order: AK BCC BKL DF MEL NV SCC UNK VASC
 _CLASS_TEMPERATURES = np.array(
     [8.0, 1.5, 0.85, 1.0, 1.5, 0.45, 8.0, 1.0, 1.2], dtype=np.float32
-)  # AK   BCC  BKL   DF   MEL  NV    SCC  UNK  VASC
+)
 
 WEIGHTS_DIR = Path(os.environ.get("SKINAI_WEIGHTS_DIR", str(Path(__file__).parent / "weights")))
 ENSEMBLE_FILES = ("efficientnet_b4.h5", "efficientnet_b5.h5", "efficientnet_b7.h5")
 
-# Calibrated head: sklearn Pipeline (StandardScaler + LogisticRegression) trained on
-# balanced ISIC samples. Takes log(raw_probs) as input, outputs calibrated class probs.
-# Falls back to per-class temperature scaling when not present.
-# Checks Modal volume path (/weights/calibration/head.pkl) before local path.
-def _load_calibrated_head():
+
+def _calibration_path(filename: str) -> Path | None:
     candidates = [
-        Path(os.environ.get("SKINAI_WEIGHTS_DIR", "")) / "calibration" / "head.pkl",
-        Path(__file__).parent / "calibration" / "head.pkl",
+        Path(os.environ.get("SKINAI_WEIGHTS_DIR", "")) / "calibration" / filename,
+        Path(__file__).parent / "calibration" / filename,
     ]
     for p in candidates:
         if p.exists():
-            with open(p, "rb") as f:
-                return pickle.load(f)
+            return p
     return None
 
+
+def _load_calibrated_head():
+    p = _calibration_path("head.pkl")
+    if p:
+        with open(p, "rb") as f:
+            return pickle.load(f)
+    return None
+
+
+def _load_eva02_head() -> tuple | None:
+    """Return (pipe, classes_array) or None if eva02_head.pkl not found."""
+    p = _calibration_path("eva02_head.pkl")
+    if p:
+        with open(p, "rb") as f:
+            data = pickle.load(f)
+        return data["pipe"], data["classes"]
+    return None
+
+
 _calibrated_head = _load_calibrated_head()
+_eva02_head_data = _load_eva02_head()
+
+
+def _load_eva02_model():
+    """Lazy-load EVA-02-Base from timm. Returns (model, transform) or (None, None)."""
+    if _eva02_head_data is None:
+        return None, None
+    try:
+        import timm
+        import torch  # noqa: F401 — needed by timm
+        from timm.data import resolve_data_config
+        from timm.data.transforms_factory import create_transform
+
+        model = timm.create_model("eva02_base_patch14_448", pretrained=True, num_classes=0)
+        model.eval()
+        transform = create_transform(**resolve_data_config({}, model=model))
+        return model, transform
+    except Exception:
+        return None, None
+
+
+_eva02_model, _eva02_transform = _load_eva02_model()
 
 ImageSource = Union[str, bytes, Path]
 
@@ -101,12 +130,10 @@ class SkinAIEnsemble:
             self.models.append(tf_keras.models.load_model(path, compile=False))
 
     def input_size(self, model: tf_keras.Model) -> tuple[int, int]:
-        """Read the (H, W) this model expects directly from its input tensor."""
         _, h, w, _ = model.input_shape
         return (h, w)
 
     def _raw_ensemble_probs(self, source_image: Image.Image) -> np.ndarray:
-        """TTA soft-vote across all models, returning raw (uncalibrated) probs."""
         per_model: list[np.ndarray] = []
         for model in self.models:
             h, w = self.input_size(model)
@@ -118,33 +145,45 @@ class SkinAIEnsemble:
         return np.mean(per_model, axis=0)
 
     def predict_probs(self, source_image: Image.Image) -> np.ndarray:
-        """Return calibrated class probabilities.
-
-        Uses the learned LR calibration head when available (trained on balanced
-        ISIC data), falling back to per-class temperature scaling.
-        """
         raw = self._raw_ensemble_probs(source_image)
-        return _calibrate(raw)
+        return _calibrate_eff(raw)
 
 
 def _apply_temperature(probs: np.ndarray) -> np.ndarray:
-    """Per-class temperature scaling on log-probability space, then re-softmax."""
     logits = np.log(probs + 1e-10) / _CLASS_TEMPERATURES
     logits -= logits.max()
     exp = np.exp(logits)
     return exp / exp.sum()
 
 
-def _calibrate(raw: np.ndarray) -> np.ndarray:
-    """Apply calibrated LR head if available; otherwise temperature scaling."""
+def _calibrate_eff(raw: np.ndarray) -> np.ndarray:
     if _calibrated_head is not None:
-        log_probs = np.log(raw + 1e-10).reshape(1, -1)
-        return _calibrated_head.predict_proba(log_probs)[0]
+        return _calibrated_head.predict_proba(np.log(raw + 1e-10).reshape(1, -1))[0]
     return _apply_temperature(raw)
 
 
+def _eva02_probs(img: Image.Image) -> np.ndarray | None:
+    """Return EVA-02 calibrated probs aligned to the 9-class CLASSES space, or None."""
+    if _eva02_model is None or _eva02_head_data is None:
+        return None
+    import torch
+    pipe, classes_ = _eva02_head_data
+    tensor = _eva02_transform(img).unsqueeze(0)
+    with torch.no_grad():
+        feat = _eva02_model(tensor).squeeze(0).numpy()
+    raw = pipe.predict_proba(feat.reshape(1, -1))[0]  # len = len(classes_)
+
+    # Expand into full 9-class array (EVA-02 head was trained without UNK samples)
+    full = np.zeros(len(CLASSES), dtype=np.float64)
+    for col, cls_idx in enumerate(classes_):
+        full[cls_idx] = raw[col]
+    s = full.sum()
+    if s > 0:
+        full /= s
+    return full
+
+
 def _tta_views(img: Image.Image) -> list[Image.Image]:
-    """Original + horizontal flip + vertical flip + 180° rotation."""
     return [
         img,
         img.transpose(Image.FLIP_LEFT_RIGHT),
@@ -154,31 +193,31 @@ def _tta_views(img: Image.Image) -> list[Image.Image]:
 
 
 def _preprocess(img: Image.Image, size: tuple[int, int]) -> np.ndarray:
-    """Resize + ImageNet normalise → (1, H, W, 3) float32."""
-    img = img.convert("RGB").resize((size[1], size[0]))  # PIL uses (W, H)
+    img = img.convert("RGB").resize((size[1], size[0]))
     arr = np.asarray(img, dtype=np.float32) / 255.0
     arr = (arr - _IMAGENET_MEAN) / _IMAGENET_STD
     return arr[None, ...]
 
 
 def _open_image(source: ImageSource) -> Image.Image:
-    """Decode an image from a file path, raw bytes, or base64 string."""
     if isinstance(source, Path) or (isinstance(source, str) and Path(source).is_file()):
         return Image.open(source)
     if isinstance(source, bytes):
         return Image.open(io.BytesIO(source))
     if isinstance(source, str):
-        b64 = source.split(",", 1)[-1]  # tolerate data:image/...;base64, prefix
+        b64 = source.split(",", 1)[-1]
         return Image.open(io.BytesIO(base64.b64decode(b64)))
     raise ValueError(f"unsupported image source type: {type(source).__name__}")
 
 
 def predict(ensemble: SkinAIEnsemble, source: ImageSource, top_k: int = 3) -> dict:
-    """Run inference and return the JSON response shape used by /predict."""
     img = _open_image(source)
-    probs = ensemble.predict_probs(img)
-    order = np.argsort(probs)[::-1][:top_k]
+    eff_probs = ensemble.predict_probs(img)
+    eva_probs = _eva02_probs(img)
 
+    probs = (eff_probs + eva_probs) / 2 if eva_probs is not None else eff_probs
+
+    order = np.argsort(probs)[::-1][:top_k]
     top = [
         Prediction(
             class_name=CLASSES[i][1],
