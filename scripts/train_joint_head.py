@@ -49,7 +49,9 @@ CLASS_QUERIES: dict[str, list[tuple[str, str]]] = {
     "DF":   [("diagnosis_3", "Dermatofibroma")],
     "MEL":  [("diagnosis_2", "Malignant melanocytic proliferations (Melanoma)")],
     "NV":   [("diagnosis_3", "Nevus")],
-    "SCC":  [("diagnosis_3", "Squamous cell carcinoma")],
+    # diagnosis_3 = "Squamous cell carcinoma" matches nothing in ISIC; use the
+    # parent diagnosis_2 category instead (Malignant epidermal proliferations).
+    "SCC":  [("diagnosis_2", "Malignant epidermal proliferations")],
     "VASC": [
         ("diagnosis_3", "Hemangioma"),
         ("diagnosis_3", "Angiokeratoma"),
@@ -57,23 +59,35 @@ CLASS_QUERIES: dict[str, list[tuple[str, str]]] = {
     ],
 }
 CODES = list(CLASS_QUERIES.keys())
-N_CLASSES = len(CLASSES)  # 9 (includes UNK)
+# ISIC API hard-caps results at 100 per page; use offset for pagination.
+_API_PAGE = 100
 
 
 def fetch_samples(code: str, n: int, skip: int = 0) -> list[dict]:
-    samples: list[dict] = []
+    """Fetch n samples starting at offset skip, paginating through the ISIC API."""
+    all_results: list[dict] = []
     for field, value in CLASS_QUERIES[code]:
-        remaining = n + skip - len(samples)
-        if remaining <= 0:
-            break
-        resp = requests.get(
-            ISIC_SEARCH,
-            params={"query": f'{field}:"{value}"', "limit": remaining},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        samples.extend(resp.json()["results"])
-    return samples[skip: skip + n]
+        offset = 0
+        while len(all_results) < n + skip:
+            batch_limit = min(_API_PAGE, (n + skip) - len(all_results))
+            resp = requests.get(
+                ISIC_SEARCH,
+                params={
+                    "query": f'{field}:"{value}"',
+                    "limit": batch_limit,
+                    "offset": offset,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            batch = resp.json()["results"]
+            if not batch:
+                break
+            all_results.extend(batch)
+            offset += len(batch)
+            if len(batch) < batch_limit:
+                break  # fewer results than requested — end of data for this query
+    return all_results[skip: skip + n]
 
 
 def collect(ensemble: SkinAIEnsemble, eva_model, transform, per_class: int, skip: int, label: str):
@@ -98,6 +112,9 @@ def collect(ensemble: SkinAIEnsemble, eva_model, transform, per_class: int, skip
                 tensor = transform(img).unsqueeze(0)
                 with torch.no_grad():
                     eva_feat = eva_model(tensor).squeeze(0).numpy()
+                # Guard: skip NaN/inf features (corrupted images produce these)
+                if not (np.isfinite(eff_feat).all() and np.isfinite(eva_feat).all()):
+                    continue
             except Exception as e:
                 print(f"    skip {s['isic_id']}: {e}", file=sys.stderr)
                 continue
@@ -109,13 +126,13 @@ def collect(ensemble: SkinAIEnsemble, eva_model, transform, per_class: int, skip
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--per-class",  type=int, default=150,
-                    help="Training images per class")
-    ap.add_argument("--skip",       type=int, default=20,
-                    help="Skip first N API results (avoids eval-set overlap)")
-    ap.add_argument("--eval-per-class", type=int, default=15)
-    ap.add_argument("--eval-skip",  type=int, default=200,
-                    help="Held-out eval start (skip past training images)")
+    ap.add_argument("--per-class",  type=int, default=80,
+                    help="Training images per class (ISIC API yields ~80-100 per query)")
+    ap.add_argument("--skip",       type=int, default=5,
+                    help="Skip first N API results (reserve for eval hold-out)")
+    ap.add_argument("--eval-per-class", type=int, default=5)
+    ap.add_argument("--eval-skip",  type=int, default=0,
+                    help="Eval images start at offset 0 (first 5 results held out)")
     ap.add_argument("--pca-dims",   type=int, default=50,
                     help="EVA-02 PCA dimensionality before concatenating")
     args = ap.parse_args()
@@ -200,19 +217,19 @@ def main() -> None:
         flag = " ✓" if r_gbm >= 0.80 else ""
         print(f"  {CLASSES[i][0]:<6}  {r_gbm:>10.1%}  {r_lr:>10.1%}{flag}")
 
-    # Save the best model
-    best = gbm if bal_gbm >= bal_lr else lr.named_steps["lr"]
+    # Save whichever model scored higher
+    best_model = gbm if bal_gbm >= bal_lr else lr
+    best_name  = "GBM" if bal_gbm >= bal_lr else "LR"
     out_path = Path(__file__).resolve().parent.parent / "backend" / "calibration" / "joint_head.pkl"
     payload = {
-        "model": gbm,
+        "model": best_model,
         "scaler_eva": scaler_eva,
         "pca": pca,
         "classes": np.array([i for i, (c, _) in enumerate(CLASSES) if c != "UNK"]),
     }
     with open(out_path, "wb") as f:
         pickle.dump(payload, f)
-    print(f"\nSaved joint head → {out_path}", file=sys.stderr)
-    print(f"Use with inference.py: set HAS_JOINT_HEAD=1 or place file at backend/calibration/joint_head.pkl")
+    print(f"\nSaved Joint {best_name} head → {out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

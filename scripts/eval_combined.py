@@ -40,7 +40,7 @@ CLASS_QUERIES: dict[str, list[tuple[str, str]]] = {
     "DF":   [("diagnosis_3", "Dermatofibroma")],
     "MEL":  [("diagnosis_2", "Malignant melanocytic proliferations (Melanoma)")],
     "NV":   [("diagnosis_3", "Nevus")],
-    "SCC":  [("diagnosis_3", "Squamous cell carcinoma")],
+    "SCC":  [("diagnosis_2", "Malignant epidermal proliferations")],
     "VASC": [
         ("diagnosis_3", "Hemangioma"),
         ("diagnosis_3", "Angiokeratoma"),
