@@ -57,3 +57,4 @@
 \contentsline {section}{\numberline {13}Codebase Reference}{17}{section.13}%
 \contentsline {subsection}{\numberline {13.1}Re-running calibration after backbone retrain}{17}{subsection.13.1}%
 \contentsline {section}{\numberline {14}Further Reading}{18}{section.14}%
+\contentsline {section}{\numberline {15}Final Architecture Decision: SCC Removal (June 2026)}{19}{section.15}%

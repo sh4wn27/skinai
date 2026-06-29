@@ -5,7 +5,7 @@ import ScanWidget from '@/components/ScanWidget'
 const stats = [
   { value: '25,000+', label: 'Training Images' },
   { value: 'EfficientNet + EVA-02', label: 'Dual-Backbone Ensemble' },
-  { value: '9', label: 'Conditions Detected' },
+  { value: '8', label: 'Conditions Detected' },
 ]
 
 const steps = [
@@ -31,7 +31,6 @@ const conditions = [
   { code: 'BKL', name: 'Benign keratosis', highRisk: false },
   { code: 'DF', name: 'Dermatofibroma', highRisk: false },
   { code: 'VASC', name: 'Vascular lesion', highRisk: false },
-  { code: 'SCC', name: 'Squamous cell carcinoma', highRisk: true },
   { code: 'UNK', name: 'Unknown', highRisk: false },
 ]
 
@@ -40,8 +39,8 @@ const modelFacts = [
   { label: 'Classifier', value: 'Joint GBM (59-dim features)' },
   { label: 'Training data', value: 'ISIC 2019 + 2020 + HAM10000' },
   { label: 'Training images', value: '25,000+' },
-  { label: 'Output classes', value: '9 conditions' },
-  { label: 'High-risk flags', value: 'MEL · BCC · SCC · AK' },
+  { label: 'Output classes', value: '8 conditions' },
+  { label: 'High-risk flags', value: 'MEL · BCC · AK' },
 ]
 
 export default function HomePage() {
@@ -121,7 +120,7 @@ export default function HomePage() {
       <section className="py-16 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xs font-medium text-pink-700 uppercase tracking-widest mb-2">Coverage</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold text-zinc-900 mb-2">9 conditions detected</h2>
+          <h2 className="text-2xl sm:text-3xl font-semibold text-zinc-900 mb-2">8 conditions detected</h2>
           <p className="text-zinc-400 text-xs font-light mb-8">
             Trained on ISIC 2019 + ISIC 2020 + HAM10000
           </p>
@@ -140,7 +139,7 @@ export default function HomePage() {
             ))}
           </div>
           <p className="text-zinc-300 text-xs mt-5 font-light">
-            Melanoma, BCC, SCC, and AK are flagged high-risk and trigger a dermatologist recommendation.
+            Melanoma, BCC, and AK are flagged high-risk and trigger a dermatologist recommendation.
           </p>
         </div>
       </section>

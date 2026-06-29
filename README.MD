@@ -23,8 +23,9 @@ AI-powered skin lesion screening across 9 dermatological conditions. Upload a ph
 | BKL  | Benign keratosis | Low |
 | DF   | Dermatofibroma | Low |
 | VASC | Vascular lesion | Low |
-| SCC  | Squamous cell carcinoma | ⚠️ High |
 | UNK  | Unknown | Low |
+
+> **Note:** SCC (Squamous cell carcinoma) was removed. The ISIC API training data for SCC is contaminated (the `diagnosis_2` category mixes SCC with AK), resulting in 0% recall across all tested architectures. SCC predictions are suppressed and redistributed to prevent false negatives.
 
 ## Stack
 

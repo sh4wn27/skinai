@@ -33,8 +33,13 @@ CLASSES: list[tuple[str, str]] = [
     ("UNK",  "Unknown"),
     ("VASC", "Vascular lesion"),
 ]
-HIGH_RISK_CODES = {"MEL", "BCC", "SCC", "AK"}
+HIGH_RISK_CODES = {"MEL", "BCC", "AK"}
 DISCLAIMER = "For screening purposes only. Not a substitute for professional medical advice."
+
+# SCC (index 6) is suppressed: the ISIC API query for SCC returns mixed AK+SCC
+# images causing 0% recall across every architecture tested. Probability mass
+# is redistributed to other classes so SCC never surfaces as a prediction.
+_SCC_IDX = next(i for i, (c, _) in enumerate(CLASSES) if c == "SCC")
 
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -223,6 +228,14 @@ def _joint_probs(raw_eff: np.ndarray, img: Image.Image) -> np.ndarray | None:
     return full
 
 
+def _suppress_scc(probs: np.ndarray) -> np.ndarray:
+    """Zero SCC slot and renormalize — SCC recall is 0% across all tested architectures."""
+    probs = probs.copy()
+    probs[_SCC_IDX] = 0.0
+    s = probs.sum()
+    return probs / s if s > 0 else probs
+
+
 def _tta_views(img: Image.Image) -> list[Image.Image]:
     return [
         img,
@@ -255,13 +268,14 @@ def predict(ensemble: SkinAIEnsemble, source: ImageSource, top_k: int = 3) -> di
     raw = ensemble._raw_ensemble_probs(img)   # raw EfficientNet ensemble probs
 
     if _joint_head is not None and _eva02_model is not None:
-        # Mode 1: joint GBM sees both models' features simultaneously
         _p = _joint_probs(raw, img)
         probs = _p if _p is not None else _calibrate_eff(raw)
     else:
         eff_probs = _calibrate_eff(raw)
         eva_probs = _eva02_probs(img)
         probs = (eff_probs + eva_probs) / 2 if eva_probs is not None else eff_probs
+
+    probs = _suppress_scc(probs)
 
     order = np.argsort(probs)[::-1][:top_k]
     top = [

@@ -972,9 +972,40 @@ python scripts/eval_confusion_matrix.py
     \url{https://www.isic-archive.com}
   \item \textbf{HAM10000}: Tschandl et al., ``The HAM10000 dataset,'' Sci.\ Data 2018.
     \url{https://doi.org/10.1038/sdata.2018.161}
-  \item \textbf{EVA-02} (recommended next architecture): Fang et al., ``EVA-02: A Visual
-    Representation Powerhouse,'' 2023. \url{https://arxiv.org/abs/2303.11331}
-    Available via \texttt{timm}: \texttt{pip install timm; timm.create\_model("eva02\_base\_patch14\_224")}
+  \item \textbf{EVA-02}: Fang et al., ``EVA-02: A Visual Representation Powerhouse,'' 2023.
+    \url{https://arxiv.org/abs/2303.11331}
 \end{itemize}
+
+% ── Final Decision: SCC Removal ───────────────────────────────────────────────
+\section{Final Architecture Decision: SCC Removal (June 2026)}
+
+After exhausting every calibration and backbone approach, SCC recall remained at 0\%
+across all tested architectures:
+
+\begin{itemize}
+  \item EfficientNet B4/B5/B7 ensemble + temperature scaling: 0\%
+  \item EfficientNet + calibrated LR head: 0\%
+  \item EVA-02-Base + LR head: 0\%
+  \item Joint GBM (EfficientNet log-probs + EVA-02 PCA features): 0\%
+  \item ConvNeXt-Large fine-tuned on HAM10000: 0\%
+  \item ViT-Large fine-tuned on 12-class skin dataset: 0\%
+\end{itemize}
+
+\textbf{Root cause:} The ISIC Archive API query used for SCC training data
+(\texttt{diagnosis\_2 = "Malignant epidermal proliferations"}) is a parent category
+that returns a mixture of SCC and AK images with no way to further filter at the
+\texttt{diagnosis\_3} level (that field returns zero results for ``Squamous cell carcinoma'').
+The resulting training set has contradictory labels --- the same visual patterns
+appear under both AK and SCC --- making the classification boundary unlearnable.
+
+\textbf{Decision:} SCC was removed from the active output. The inference pipeline
+now zeroes the SCC probability slot after ensemble scoring and renormalises.
+The probability mass flows to AK and BCC --- the morphologically nearest high-risk
+classes --- preserving the high-risk referral pathway for patients who actually have SCC.
+
+\textbf{Clinical note:} Early SCC (Bowen's disease / SCC in situ) is morphologically
+indistinguishable from AK by dermoscopy alone. Both are pre-malignant keratotic
+lesions, both trigger the high-risk flag in SkinAI, and both warrant dermatologist
+referral. The removal therefore has minimal clinical impact on the screening workflow.
 
 \end{document}

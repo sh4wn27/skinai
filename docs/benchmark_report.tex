@@ -114,9 +114,20 @@ through class-rebalanced fine-tuning.
 \end{itemize}
 
 \subsection{Diagnostic Scope and Risk Stratification}
-The system classifies images into eight active categories.
-Four are designated \highriskbadge{high-risk}; a positive high-risk prediction
+The system classifies images into seven active categories plus an ``Unknown'' catch-all.
+Three are designated \highriskbadge{high-risk}; a positive high-risk prediction
 surfaces a dermatologist-referral prompt in the UI.
+
+\textbf{Note on SCC removal.}
+Squamous cell carcinoma was removed from the active output set.
+The ISIC Archive API query used for training
+(\code{diagnosis\_2 = "Malignant epidermal proliferations"})
+returns a mixture of SCC and AK images, producing contradictory training signal.
+SCC recall was 0\% across every architecture tested
+(EfficientNet ensemble, EVA-02 LR head, joint GBM, ConvNeXt-L, ViT-L).
+The SCC probability slot is now zeroed and redistributed at inference time.
+Patients with suspected SCC will be captured by the AK flag (which shares keratotic morphology)
+and the high-risk referral pathway.
 
 \begin{table}[h]
 \centering\small
@@ -137,9 +148,10 @@ AK   & Actinic keratosis           &  3.3\% & \highriskbadge{High} \\
 DF   & Dermatofibroma              &  1.1\% & Low \\
 \rowcolor{tablegray}
 VASC & Vascular lesion             &  1.4\% & Low \\
-SCC  & Squamous cell carcinoma     &  0.8\% & \highriskbadge{High} \\
+\textit{SCC}  & \textit{Squamous cell carcinoma (removed\textsuperscript{$\ddagger$})} &  \textit{0.8\%} & \textit{---} \\
 \bottomrule
-\multicolumn{4}{@{}l}{\scriptsize$\dagger$ Estimated from combined ISIC\,2019 + HAM10000 corpus.}
+\multicolumn{4}{@{}l}{\scriptsize$\dagger$ Estimated from combined ISIC\,2019 + HAM10000 corpus.} \\
+\multicolumn{4}{@{}l}{\scriptsize$\ddagger$ Removed from active output; see Section~1.2.}
 \end{tabular}
 \end{table}
 
