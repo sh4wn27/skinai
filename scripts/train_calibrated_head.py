@@ -89,12 +89,14 @@ def raw_probs(ensemble: SkinAIEnsemble, img_bytes: bytes) -> np.ndarray:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--per-class", type=int, default=35,
+    ap.add_argument("--per-class", type=int, default=150,
                     help="Training samples per class")
     ap.add_argument("--skip", type=int, default=20,
                     help="Skip first N API results to avoid eval-set overlap")
     ap.add_argument("--val-split", type=float, default=0.25,
                     help="Fraction held out for validation")
+    ap.add_argument("--output", type=str, default=None,
+                    help="Output path for head.pkl (default: backend/calibration/head.pkl)")
     ap.add_argument("--finetuned", action="store_true",
                     help="Use finetuned_efficientnet_b{4,5,7}.h5 instead of originals")
     args = ap.parse_args()
@@ -173,9 +175,13 @@ def main() -> None:
     print(cr, file=sys.stderr)
 
     # Save
-    out_dir = Path(__file__).resolve().parent.parent / "backend" / "calibration"
-    out_dir.mkdir(exist_ok=True)
-    out_path = out_dir / "head.pkl"
+    if args.output:
+        out_path = Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        out_dir = Path(__file__).resolve().parent.parent / "backend" / "calibration"
+        out_dir.mkdir(exist_ok=True)
+        out_path = out_dir / "head.pkl"
     with open(out_path, "wb") as f:
         pickle.dump(pipe, f)
     print(f"\nSaved → {out_path}", file=sys.stderr)

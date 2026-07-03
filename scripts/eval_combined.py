@@ -10,11 +10,18 @@ Usage:
 
 from __future__ import annotations
 
+# tf_keras (via inference) MUST be imported before timm/torch so TensorFlow
+# claims the CUDA context first. If PyTorch initialises first, TF's XLA JIT
+# compilation fails with "JIT compilation failed" on the normalization Sqrt op.
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from inference import CLASSES, SkinAIEnsemble, _preprocess  # noqa: E402
+
 import argparse
 import io
 import pickle
-import sys
-from pathlib import Path
 
 import numpy as np
 import requests
@@ -27,9 +34,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from inference import CLASSES, SkinAIEnsemble, _preprocess  # noqa: E402
 
 ISIC_SEARCH = "https://api.isic-archive.com/api/v2/images/search/"
 
@@ -110,11 +114,20 @@ def collect(ensemble, eva_model, transform, per_class, skip, label):
 
 
 def main() -> None:
+    # Disable XLA JIT before any TF model ops. model.predict() on some Modal T4
+    # environments triggers XLA compilation which fails on the normalization Sqrt
+    # op. set_jit(False) forces standard CUDA ops — same numerics, no JIT step.
+    import tensorflow as tf
+    tf.config.optimizer.set_jit(False)
+
     ap = argparse.ArgumentParser()
-    ap.add_argument("--train-per-class", type=int, default=50)
+    ap.add_argument("--train-per-class", type=int, default=150)
     ap.add_argument("--train-skip",      type=int, default=20)
-    ap.add_argument("--eval-per-class",  type=int, default=12)
-    ap.add_argument("--eval-skip",       type=int, default=70)
+    ap.add_argument("--eval-per-class",  type=int, default=15)
+    ap.add_argument("--eval-skip",       type=int, default=220)
+    ap.add_argument("--output-dir",      type=str, default=None,
+                    help="Directory to save head.pkl and eva02_head.pkl "
+                         "(default: backend/calibration/)")
     args = ap.parse_args()
 
     print("Loading EfficientNet ensemble...", file=sys.stderr)
@@ -131,6 +144,12 @@ def main() -> None:
         ensemble, eva_model, transform,
         args.train_per_class, args.train_skip, "train"
     )
+
+    if len(y_tr) == 0:
+        raise RuntimeError(
+            "Training collection produced 0 samples — EfficientNet inference failed "
+            "on every image. Check TF/CUDA/XLA logs above for the root cause."
+        )
 
     print("\nCollecting eval features...", file=sys.stderr)
     eff_Xev, eva_Xev, y_ev = collect(
@@ -156,10 +175,20 @@ def main() -> None:
     ])
     eva_pipe.fit(eva_Xtr, y_tr)
 
-    # Save the EVA-02 head for deployment.
-    # Store classes_ alongside the pipe so inference.py can align the
-    # 8-class EVA-02 output into the full 9-class CLASSES space.
-    out_dir = Path(__file__).resolve().parent.parent / "backend" / "calibration"
+    # Save both heads for deployment.
+    if args.output_dir:
+        out_dir = Path(args.output_dir)
+    else:
+        out_dir = Path(__file__).resolve().parent.parent / "backend" / "calibration"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # EfficientNet head — raw Pipeline (matches inference.py _load_calibrated_head)
+    eff_head_path = out_dir / "head.pkl"
+    with open(eff_head_path, "wb") as f:
+        pickle.dump(eff_pipe, f)
+    print(f"Saved EfficientNet head → {eff_head_path}", file=sys.stderr)
+
+    # EVA-02 head — dict with pipe + classes_ for CLASSES alignment
     eva_head_path = out_dir / "eva02_head.pkl"
     with open(eva_head_path, "wb") as f:
         pickle.dump({"pipe": eva_pipe, "classes": eva_pipe.classes_}, f)

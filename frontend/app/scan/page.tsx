@@ -5,7 +5,7 @@ import ScanWidget from '@/components/ScanWidget'
 
 export const metadata: Metadata = {
   title: 'Scan — SkinAI',
-  description: 'Upload a photo for AI-powered skin lesion screening across 9 conditions.',
+  description: 'Upload a photo for AI-powered skin lesion screening across 8 conditions.',
 }
 
 export default function ScanPage() {
@@ -24,7 +24,7 @@ export default function ScanPage() {
             </Link>
             <h1 className="text-4xl font-bold text-zinc-900 mb-2">Scan your skin</h1>
             <p className="text-zinc-400 text-lg">
-              Upload a clear, well-lit photo of the lesion. Our AI will screen it for 9 conditions
+              Upload a clear, well-lit photo of the lesion. Our AI will screen it for 8 conditions
               in seconds.
             </p>
           </div>

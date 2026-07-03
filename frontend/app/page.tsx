@@ -36,7 +36,7 @@ const conditions = [
 
 const modelFacts = [
   { label: 'Backbones', value: 'EfficientNet B4/B5/B7 + EVA-02' },
-  { label: 'Classifier', value: 'Joint GBM (59-dim features)' },
+  { label: 'Classifier', value: 'Soft voting ensemble' },
   { label: 'Training data', value: 'ISIC 2019 + 2020 + HAM10000' },
   { label: 'Training images', value: '25,000+' },
   { label: 'Output classes', value: '8 conditions' },
@@ -57,8 +57,8 @@ export default function HomePage() {
             <span className="text-pink-700">Screening.</span>
           </h1>
           <p className="text-sm sm:text-base text-zinc-400 max-w-xl mx-auto mb-8 leading-relaxed font-light">
-            Upload a photo of your skin lesion. Get an instant risk assessment across 9
-            dermatological conditions powered by a research-grade EfficientNet ensemble.
+            Upload a photo of your skin lesion. Get an instant risk assessment across 8
+            dermatological conditions powered by a research-grade dual-backbone ensemble.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
             <Link
@@ -177,14 +177,16 @@ export default function HomePage() {
               </a>
             </div>
             <pre className="bg-zinc-900 text-zinc-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">
-              <code>{`# Joint GBM: EfficientNet log_probs (9) + EVA-02 PCA (50)
-def predict(ensemble, img):
-    raw = ensemble._raw_ensemble_probs(img)   # B4+B5+B7
-    eff = np.log(raw + 1e-10)                 # 9-dim
-    eva = eva02_model(img)                    # 768-dim
-    eva_pca = pca.transform(scaler.transform(eva))  # 50-dim
-    X = np.concatenate([eff, eva_pca])        # 59-dim
-    return joint_gbm.predict_proba(X)         # 9 classes`}</code>
+              <code>{`# Soft ensemble: EfficientNet LR head + EVA-02 LR head averaged
+def predict(ensemble, eva02_model, img):
+    eff_probs = eff_lr_head.predict_proba(
+        ensemble._raw_ensemble_probs(img)     # B4 + B5 + B7
+    )
+    eva_probs = eva02_lr_head.predict_proba(
+        eva02_model(img)                      # 768-dim cls token
+    )
+    probs = (eff_probs + eva_probs) / 2       # soft average
+    return _suppress_scc(probs)               # zero SCC, renorm`}</code>
             </pre>
           </div>
 
